@@ -68,6 +68,8 @@ class IVW_MODULE_LABMARCHINGSQUARES_API MarchingSquares : public Processor {
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
     float interpolate(const double, const double, const double);
+    double asymptoticDecider(const double topLeft, const double bottomLeft,
+                             const double bottomRight, const double topRight);
 
    protected:
     /// Our main computation function

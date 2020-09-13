@@ -246,8 +246,6 @@ void MarchingSquares::process() {
                 double bottomRight = grid.getValueAtVertex(ivec2(x + 1, y));
                 double topRight = grid.getValueAtVertex(ivec2(x + 1, y + 1));
 
-                // LogProcessorInfo("x: " << x << "y: " << y);
-
                 int indexCase = 0;
                 if (topLeft >= propIsoValue.get()) {
                     indexCase = indexCase + 8;
@@ -262,6 +260,14 @@ void MarchingSquares::process() {
                     indexCase = indexCase + 2;
                 }
 
+                auto pointA = vec2(-1, -1);
+                auto pointB = vec2(-1, -1);
+                auto pointC = vec2(-1, -1);
+                auto pointD = vec2(-1, -1);
+                bool invert = false;
+
+                LogProcessorInfo(indexCase);
+
                 if (indexCase == 0 || indexCase == 15) {
                     continue;
                 } else if (indexCase == 1 || indexCase == 14) {
@@ -270,119 +276,142 @@ void MarchingSquares::process() {
                     auto int_x = interpolate(bottomRight, bottomLeft,
                                              propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + y * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + x * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + y * cellSize[1]);
+
                 } else if (indexCase == 2 || indexCase == 13) {
                     auto int_y =
                         interpolate(topRight, bottomRight, propIsoValue.get());
                     auto int_x = interpolate(bottomRight, bottomLeft,
                                              propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x + 1) * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + y * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + (x + 1) * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + y * cellSize[1]);
+
                 } else if (indexCase == 3 || indexCase == 12) {
                     auto int_y1 =
                         interpolate(topLeft, bottomLeft, propIsoValue.get());
                     auto int_y2 =
                         interpolate(topRight, bottomRight, propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x * cellSize[0],
-                             bBoxMin[1] + (y + int_y1) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + 1) * cellSize[0],
-                             bBoxMin[1] + (y + int_y2) * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + x * cellSize[0],
+                                  bBoxMin[1] + (y + int_y1) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + 1) * cellSize[0],
+                                  bBoxMin[1] + (y + int_y2) * cellSize[1]);
+
                 } else if (indexCase == 4 || indexCase == 11) {
                     auto int_x =
                         interpolate(topRight, topLeft, propIsoValue.get());
                     auto int_y =
                         interpolate(topRight, bottomRight, propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + (y + 1) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + 1) * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + (y + 1) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + 1) * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+
                 } else if (indexCase == 5) {
                     auto int_x =
                         interpolate(topRight, topLeft, propIsoValue.get());
                     auto int_y =
                         interpolate(topLeft, bottomLeft, propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + (y + 1) * cellSize[1]),
-                        vec2(bBoxMin[0] + x * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointD = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + (y + 1) * cellSize[1]);
+                    pointA = vec2(bBoxMin[0] + x * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
 
                     int_y =
                         interpolate(topRight, bottomRight, propIsoValue.get());
                     int_x = interpolate(bottomRight, bottomLeft,
                                         propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x + 1) * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + y * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointC = vec2(bBoxMin[0] + (x + 1) * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + y * cellSize[1]);
+
+                    // Asymptotic decider
+                    double decider = asymptoticDecider(topLeft, bottomLeft,
+                                                       bottomRight, topRight);
+                    invert = decider > propIsoValue.get();
+
                 } else if (indexCase == 6 || indexCase == 9) {
                     auto int_x1 =
                         interpolate(topRight, topLeft, propIsoValue.get());
                     auto int_x2 = interpolate(bottomRight, bottomLeft,
                                               propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x + int_x1) * cellSize[0],
-                             bBoxMin[1] + (y + 1) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x2) * cellSize[0],
-                             bBoxMin[1] + y * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + (x + int_x1) * cellSize[0],
+                                  bBoxMin[1] + (y + 1) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + int_x2) * cellSize[0],
+                                  bBoxMin[1] + y * cellSize[1]);
+
                 } else if (indexCase == 7 || indexCase == 8) {
                     auto int_y =
                         interpolate(topLeft, bottomLeft, propIsoValue.get());
                     auto int_x =
                         interpolate(topRight, topLeft, propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + (y + 1) * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + x * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + (y + 1) * cellSize[1]);
+
                 } else if (indexCase == 10) {
                     auto int_y =
                         interpolate(topLeft, bottomLeft, propIsoValue.get());
                     auto int_x = interpolate(bottomRight, bottomLeft,
                                              propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + y * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointA = vec2(bBoxMin[0] + x * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+                    pointB = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + y * cellSize[1]);
 
                     int_y =
                         interpolate(topRight, bottomRight, propIsoValue.get());
                     int_x = interpolate(topRight, topLeft, propIsoValue.get());
 
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x + 1) * cellSize[0],
-                             bBoxMin[1] + (y + int_y) * cellSize[1]),
-                        vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
-                             bBoxMin[1] + (y + 1) * cellSize[1]),
-                        propIsoColor.get(), indexBuffer.get(), vertices);
+                    pointC = vec2(bBoxMin[0] + (x + 1) * cellSize[0],
+                                  bBoxMin[1] + (y + int_y) * cellSize[1]);
+                    pointD = vec2(bBoxMin[0] + (x + int_x) * cellSize[0],
+                                  bBoxMin[1] + (y + 1) * cellSize[1]);
+
+                    // Asymptotic decider
+                    double decider = asymptoticDecider(topLeft, bottomLeft,
+                                                       bottomRight, topRight);
+                    invert = decider < propIsoValue.get();
+                }
+
+                if (pointC[0] != -1) {
+                    // We are in one of the complicated cases (5 or 10)
+
+                    // We mess the asymptotic decider with a random decider if
+                    // the user wants to
+                    if (propDeciderType.get() == 1) {
+                        const float alea = randomValue(0, 1);
+                        invert = alea > 0.5;
+                    }
+
+                    if (invert) {
+                        drawLineSegment(pointA, pointD, propIsoColor.get(),
+                                        indexBuffer.get(), vertices);
+                        drawLineSegment(pointB, pointC, propIsoColor.get(),
+                                        indexBuffer.get(), vertices);
+                    } else {
+                        drawLineSegment(pointA, pointB, propIsoColor.get(),
+                                        indexBuffer.get(), vertices);
+                        drawLineSegment(pointC, pointD, propIsoColor.get(),
+                                        indexBuffer.get(), vertices);
+                    }
+                } else {
+                    drawLineSegment(pointA, pointB, propIsoColor.get(),
+                                    indexBuffer.get(), vertices);
                 }
             }
         }
@@ -414,6 +443,16 @@ void MarchingSquares::process() {
 float MarchingSquares::interpolate(const double f_x1, const double f_x0,
                                    const double val) {
     return (val - f_x0) / (f_x1 - f_x0);
+}
+
+double MarchingSquares::asymptoticDecider(const double topLeft,
+                                          const double bottomLeft,
+                                          const double bottomRight,
+                                          const double topRight) {
+    // The formula comes from page 29 of the document
+    // "GeometryBasedScalarFieldVisualization.pdf"
+    return (topLeft * bottomRight - topRight * bottomLeft) /
+           (bottomRight + topLeft - topRight - bottomLeft);
 }
 
 float MarchingSquares::randomValue(const float min, const float max) const {
