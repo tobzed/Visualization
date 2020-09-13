@@ -70,6 +70,12 @@ class IVW_MODULE_LABMARCHINGSQUARES_API MarchingSquares : public Processor {
     float interpolate(const double, const double, const double);
     double asymptoticDecider(const double topLeft, const double bottomLeft,
                              const double bottomRight, const double topRight);
+    void drawContour(
+        Field<2, 1>& grid,
+        std::shared_ptr<BufferRAMPrecision<unsigned int, BufferTarget::Index> >&
+            indexBuffer,
+        std::vector<BasicMesh::Vertex>& vertices, const double isoValue);
+    dvec2 getExtrema(Field<2, 1>& grid);
 
    protected:
     /// Our main computation function
