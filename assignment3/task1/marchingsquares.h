@@ -65,7 +65,7 @@ public:
 public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
-    float interpolate(const double, const double, const double, const double, const double, const double);
+    float interpolate(const double, const double, const double);
 protected:
     /// Our main computation function
     virtual void process() override;
