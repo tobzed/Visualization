@@ -247,7 +247,7 @@ void MarchingSquares::process() {
                 for(int i = -2; i < 3; i++) {
                     tmp_val += x+i < 0 || y+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
                 }
-                smoothedField.setValueAtVertex({x,y}, tmp_val);
+                smoothedField.setValueAtVertex({x,y}, tmp_val/256);
             }
         }
         grid = smoothedField;
