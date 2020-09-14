@@ -30,6 +30,7 @@ MarchingSquares::MarchingSquares()
     , meshIsoOut("meshIsoOut")
     , meshGridOut("meshGridOut")
     , propShowGrid("showGrid", "Show Grid")
+    , propGaussFilter("gaussFilter", "Gauss filter")
     , propGridColor("gridColor", "Grid Lines Color", vec4(0.0f, 0.0f, 0.0f, 1.0f), vec4(0.0f),
                     vec4(1.0f), vec4(0.1f), InvalidationLevel::InvalidOutput,
                     PropertySemantics::Color)
@@ -49,7 +50,7 @@ MarchingSquares::MarchingSquares()
     // Register properties
     addProperty(propShowGrid);
     addProperty(propGridColor);
-
+    addProperty(propGaussFilter);
     addProperty(propDeciderType);
     propDeciderType.addOption("asymptotic", "Asymptotic", 0);
     propDeciderType.addOption("random", "Random", 1);
@@ -98,13 +99,13 @@ MarchingSquares::MarchingSquares()
             util::show(propIsoValue, propIsoColor);
             util::hide(propNumContours, propIsoTransferFunc);
         } else {
-            util::hide(propIsoValue);
-            util::show(propIsoColor, propNumContours);
+            // util::hide(propIsoValue);
+            // util::show(propIsoColor, propNumContours);
 
             // TODO (Bonus): Comment out above if you are using the transfer function
             // and comment in below instead
-            // util::hide(propIsoValue, propIsoColor);
-            // util::show(propNumContours, propIsoTransferFunc);
+            util::hide(propIsoValue, propIsoColor);
+            util::show(propNumContours, propIsoTransferFunc);
         }
     });
 }
@@ -117,6 +118,7 @@ void MarchingSquares::process() {
     // Create a structured grid from the input volume
     auto vol = inData.getData();
     auto grid = ScalarField2::createFieldFromVolume(vol);
+    
 
     // Extract the minimum and maximum value from the input data
     const double minValue = grid.getMinValue();
@@ -226,6 +228,31 @@ void MarchingSquares::process() {
     // smoothedField.setValueAtVertex({0, 0}, 4.2);
     // and read again in the same way as before
     // smoothedField.getValueAtVertex(ij);
+
+    ScalarField2 smoothedField = ScalarField2(nVertPerDim, bBoxMin, bBoxMax - bBoxMin);
+    if(propGaussFilter.get()) {
+        double kernel[] = {1,4,6,4,1};
+        for(int x = 0; x < nVertPerDim[0]; x++) {
+            for(int y = 0; y < nVertPerDim[1]; y++) {
+                double tmp_val = 0;
+                for(int i = -2; i < 3; i++) {
+                    tmp_val += y+i < 0 || y+i >= nVertPerDim[1] ? 0 : kernel[i+2]*grid.getValueAtVertex({x,y+i});
+                }
+                smoothedField.setValueAtVertex({x,y}, tmp_val);
+            }
+        }
+        for(int y = 0; y < nVertPerDim[1]; y++) {
+            for(int x = 0; x < nVertPerDim[0]; x++) {
+                double tmp_val = smoothedField.getValueAtVertex({x,y});
+                for(int i = -2; i < 3; i++) {
+                    tmp_val += x+i < 0 || y+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
+                }
+                smoothedField.setValueAtVertex({x,y}, tmp_val);
+            }
+        }
+        grid = smoothedField;
+    }
+
     // Initialize the output: mesh and vertices
     auto mesh = std::make_shared<BasicMesh>();
     std::vector<BasicMesh::Vertex> vertices;
@@ -235,150 +262,44 @@ void MarchingSquares::process() {
     if (propMultiple.get() == 0) {
         // TODO: Draw a single isoline at the specified isovalue (propIsoValue)
         // and color it with the specified color (propIsoColor)
-        for (auto x = 0; x < nVertPerDim[0] - 1; x++) {
-            for (auto y = 0; y < nVertPerDim[1] - 1; y++) {
-
-                double bottomLeft = grid.getValueAtVertex(ivec2(x, y));
-                double topLeft = grid.getValueAtVertex(ivec2(x, y + 1));
-                double bottomRight = grid.getValueAtVertex(ivec2(x + 1, y));
-                double topRight = grid.getValueAtVertex(ivec2(x + 1, y + 1));
-                
-                //LogProcessorInfo("x: " << x << "y: " << y);
-                
-                int indexCase = 0;
-                if(topLeft >= propIsoValue.get()) {
-                    indexCase = indexCase + 8;
-                }
-                if(topRight >= propIsoValue.get()) {
-                    indexCase = indexCase + 4;
-                }
-                if(bottomLeft >= propIsoValue.get()) {
-                    indexCase = indexCase + 1;
-                }
-                if(bottomRight >= propIsoValue.get()) {
-                    indexCase = indexCase + 2;
-                }
-
-                if(indexCase == 0 || indexCase == 15) {
-                    continue;
-                } else if(indexCase == 1 || indexCase == 14) {
-                    auto int_y = interpolate(topLeft, bottomLeft, propIsoValue.get());
-                    auto int_x = interpolate(bottomRight, bottomLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2( bBoxMin[0] + x*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1] ),
-                        vec2( bBoxMin[0] + (x+int_x)*cellSize[0], bBoxMin[1] + y*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 2 || indexCase == 13) {
-                    auto int_y = interpolate(topRight, bottomRight, propIsoValue.get());
-                    auto int_x = interpolate(bottomRight, bottomLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x+1)*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1] ),
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + y*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 3 || indexCase == 12) {
-                    auto int_y1 = interpolate(topLeft, bottomLeft, propIsoValue.get());
-                    auto int_y2 = interpolate(topRight, bottomRight, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x*cellSize[0], bBoxMin[1] + (y+int_y1)*cellSize[1] ),
-                        vec2(bBoxMin[0] + (x+1)*cellSize[0],  bBoxMin[1] + (y+int_y2)*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 4 || indexCase == 11) {
-                    auto int_x = interpolate(topRight, topLeft, propIsoValue.get());
-                    auto int_y = interpolate(topRight, bottomRight, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + (y+1)*cellSize[1] ),
-                        vec2(bBoxMin[0] + (x+1)*cellSize[0],  bBoxMin[1] + (y+int_y)*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 5) {
-                    auto int_x = interpolate(topRight, topLeft, propIsoValue.get());
-                    auto int_y = interpolate(topLeft, bottomLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + (y+1)*cellSize[1] ),
-                        vec2(bBoxMin[0] + x*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1]),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-
-                    int_y = interpolate(topRight, bottomRight, propIsoValue.get());
-                    int_x = interpolate(bottomRight, bottomLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x+1)*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1]),
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + y*cellSize[1]),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 6 || indexCase == 9) {
-                    auto int_x1 = interpolate(topRight, topLeft, propIsoValue.get());
-                    auto int_x2 = interpolate(bottomRight, bottomLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x+int_x1)*cellSize[0] , bBoxMin[1] + (y+1)*cellSize[1] ),
-                        vec2(bBoxMin[0] + (x+int_x2)*cellSize[0] , bBoxMin[1] + y*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 7 || indexCase == 8) {
-                    auto int_y = interpolate(topLeft, bottomLeft, propIsoValue.get());
-                    auto int_x = interpolate(topRight, topLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1] ),
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + (y+1)*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                } else if(indexCase == 10) {
-                    auto int_y = interpolate(topLeft, bottomLeft, propIsoValue.get());
-                    auto int_x = interpolate(bottomRight, bottomLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + x*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1]),
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + y*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-
-                    int_y = interpolate(topRight, bottomRight, propIsoValue.get());
-                    int_x = interpolate(topRight, topLeft, propIsoValue.get());
-                    
-                    drawLineSegment(
-                        vec2(bBoxMin[0] + (x+1)*cellSize[0], bBoxMin[1] + (y+int_y)*cellSize[1] ),
-                        vec2(bBoxMin[0] + (x+int_x)*cellSize[0] , bBoxMin[1] + (y+1)*cellSize[1] ),
-                        propIsoColor.get(),
-                        indexBuffer.get(),
-                        vertices
-                    );
-                }                
-            }
-        }   
+        drawIsoLine(
+            bBoxMin[0], 
+            bBoxMin[1], 
+            cellSize[0], 
+            cellSize[1], 
+            nVertPerDim[0], 
+            nVertPerDim[1], 
+            propIsoValue.get(), 
+            grid, 
+            indexBuffer, 
+            vertices,
+            propIsoColor.get()
+        );
     }
 
     else {
         // TODO: Draw the given number (propNumContours) of isolines between
         // the minimum and maximum value
+
+        auto numLines = propNumContours.get();
+        double stepSize = (maxValue - minValue ) / numLines;
+        vec4 minColor = propIsoTransferFunc.get().sample(0.0f);
+        vec4 maxColor = propIsoTransferFunc.get().sample(1.0f);
+        for(double currentValue = minValue+stepSize/2; currentValue <= maxValue; currentValue += stepSize) {
+            drawIsoLine(
+                bBoxMin[0],
+                bBoxMin[1],
+                cellSize[0],
+                cellSize[1],
+                nVertPerDim[0],
+                nVertPerDim[1], 
+                currentValue, 
+                grid, 
+                indexBuffer, 
+                vertices,
+                transferColor( (currentValue-minValue)/(maxValue-minValue), minColor, maxColor)
+            );
+        }
 
         // TODO (Bonus): Use the transfer function property to assign a color
         // The transfer function normalizes the input data and sampling colors
@@ -399,6 +320,167 @@ void MarchingSquares::process() {
     meshIsoOut.setData(mesh);
 }
 
+vec4 MarchingSquares::transferColor(const double norm_val, vec4 min, vec4 max) {
+    return (1-norm_val)*min + norm_val*max;
+}
+
+void MarchingSquares::drawIsoLine(
+    const double x_offset,
+    const double y_offset, 
+    const double dx,
+    const double dy,
+    const int x_dim,
+    const int y_dim,
+    const double currentValue,
+    auto & grid,
+    auto & indexBuffer,
+    auto & vertices,
+    auto color ) {
+    for (auto x = 0; x < x_dim - 1; x++) {
+        for (auto y = 0; y < y_dim - 1; y++) {
+
+            double bottomLeft = grid.getValueAtVertex(ivec2(x, y));
+            double topLeft = grid.getValueAtVertex(ivec2(x, y + 1));
+            double bottomRight = grid.getValueAtVertex(ivec2(x + 1, y));
+            double topRight = grid.getValueAtVertex(ivec2(x + 1, y + 1));
+            
+            //LogProcessorInfo("x: " << x << "y: " << y);
+            
+            int indexCase = 0;
+            if(topLeft >= currentValue) {
+                indexCase = indexCase + 8;
+            }
+            if(topRight >= currentValue) {
+                indexCase = indexCase + 4;
+            }
+            if(bottomLeft >= currentValue) {
+                indexCase = indexCase + 1;
+            }
+            if(bottomRight >= currentValue) {
+                indexCase = indexCase + 2;
+            }
+
+            if(indexCase == 0 || indexCase == 15) {
+                continue;
+            } else if(indexCase == 1 || indexCase == 14) {
+                auto int_y = interpolate(topLeft, bottomLeft, currentValue);
+                auto int_x = interpolate(bottomRight, bottomLeft, currentValue);
+                
+                drawLineSegment(
+                    vec2( x_offset + x*dx, y_offset + (y+int_y)*dy ),
+                    vec2( x_offset + (x+int_x)*dx, y_offset + y*dy ),
+                    color,
+                    indexBuffer.get(),
+                    vertices
+                );
+            } else if(indexCase == 2 || indexCase == 13) {
+                auto int_y = interpolate(topRight, bottomRight, currentValue);
+                auto int_x = interpolate(bottomRight, bottomLeft, currentValue);
+                
+                drawLineSegment(
+                    vec2(x_offset + (x+1)*dx, y_offset + (y+int_y)*dy ),
+                    vec2(x_offset + (x+int_x)*dx , y_offset + y*dy ),
+                    color,
+                    indexBuffer.get(),
+                    vertices
+                );
+            } else if(indexCase == 3 || indexCase == 12) {
+                auto int_y1 = interpolate(topLeft, bottomLeft, currentValue);
+                auto int_y2 = interpolate(topRight, bottomRight, currentValue);
+                
+                drawLineSegment(
+                    vec2(x_offset + x*dx, y_offset + (y+int_y1)*dy ),
+                    vec2(x_offset + (x+1)*dx,  y_offset + (y+int_y2)*dy ),
+                    color,
+                    indexBuffer.get(),
+                    vertices
+                );
+            } else if(indexCase == 4 || indexCase == 11) {
+                auto int_x = interpolate(topRight, topLeft, currentValue);
+                auto int_y = interpolate(topRight, bottomRight, currentValue);
+                
+                drawLineSegment(
+                    vec2(x_offset + (x+int_x)*dx , y_offset + (y+1)*dy ),
+                    vec2(x_offset + (x+1)*dx,  y_offset + (y+int_y)*dy ),
+                    color,
+                    indexBuffer.get(),
+                    vertices
+                );
+            } else if(indexCase == 5 || indexCase == 10) {
+
+                double asym_val = asymptoticDecider(bottomLeft, bottomRight, topLeft, topRight);
+                auto top_x = interpolate(topRight, topLeft, currentValue);
+                auto left_y = interpolate(topLeft, bottomLeft, currentValue);
+                auto right_y = interpolate(topRight, bottomRight, currentValue);
+                auto bottom_x = interpolate(bottomRight, bottomLeft, currentValue);
+                
+                if(propDeciderType == 1) {
+                    randGenerator.seed(static_cast<std::mt19937::result_type>(propRandomSeed.get()));
+                    // You can create a random sample between min and max width
+                    float randlines = randomValue(0.0, 1.0);
+                    indexCase = randlines > 0.5 ? 5 : 10;
+                }
+                if( 
+                    (asym_val >= currentValue && indexCase == 5) || 
+                    (asym_val < currentValue && indexCase == 10) )  {
+                    drawLineSegment(
+                        vec2(x_offset + x*dx , y_offset + (y+left_y)*dy),
+                        vec2(x_offset + (x+top_x)*dx, y_offset + (y+1)*dy),
+                        color,
+                        indexBuffer.get(),
+                        vertices
+                    );
+                    drawLineSegment(
+                        vec2(x_offset + (x+bottom_x)*dx, y_offset + y*dy),
+                        vec2(x_offset + (x+1)*dx , y_offset + (y+right_y)*dy),
+                        color,
+                        indexBuffer.get(),
+                        vertices
+                    );
+                } else {                    
+                    drawLineSegment(
+                        vec2(x_offset + x*dx , y_offset + (y+left_y)*dy),
+                        vec2(x_offset + (x+bottom_x)*dx, y_offset + y*dy),
+                        color,
+                        indexBuffer.get(),
+                        vertices
+                    );
+                    drawLineSegment(
+                        vec2(x_offset + (x+top_x)*dx, y_offset + (y+1)*dy),
+                        vec2(x_offset + (x+1)*dx , y_offset + (y+right_y)*dy),
+                        color,
+                        indexBuffer.get(),
+                        vertices
+                    );
+                }
+
+            } else if(indexCase == 6 || indexCase == 9) {
+                auto int_x1 = interpolate(topRight, topLeft, currentValue);
+                auto int_x2 = interpolate(bottomRight, bottomLeft, currentValue);
+                
+                drawLineSegment(
+                    vec2(x_offset + (x+int_x1)*dx , y_offset + (y+1)*dy ),
+                    vec2(x_offset + (x+int_x2)*dx , y_offset + y*dy ),
+                    color,
+                    indexBuffer.get(),
+                    vertices
+                );
+            } else if(indexCase == 7 || indexCase == 8) {
+                auto int_y = interpolate(topLeft, bottomLeft, currentValue);
+                auto int_x = interpolate(topRight, topLeft, currentValue);
+                
+                drawLineSegment(
+                    vec2(x_offset + x*dx, y_offset + (y+int_y)*dy ),
+                    vec2(x_offset + (x+int_x)*dx , y_offset + (y+1)*dy ),
+                    color,
+                    indexBuffer.get(),
+                    vertices
+                );
+            }             
+        }
+    }
+}
+
 float MarchingSquares::interpolate(
         const double f_x1,
         const double f_x0,
@@ -406,6 +488,14 @@ float MarchingSquares::interpolate(
         ) { 
             return ( val - f_x0 ) / (f_x1 - f_x0);
 }
+
+double MarchingSquares::asymptoticDecider(
+    const double bottomLeft,
+    const double bottomRight,
+    const double topLeft,
+    const double topRight) {
+        return (bottomLeft*topRight - bottomRight*topLeft) / (bottomLeft + topRight - bottomRight - topLeft) ;
+    }
 
 float MarchingSquares::randomValue(const float min, const float max) const {
     return min + uniformReal(randGenerator) * (max - min);

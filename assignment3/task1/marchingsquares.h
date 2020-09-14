@@ -66,6 +66,21 @@ public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
     float interpolate(const double, const double, const double);
+    double asymptoticDecider(const double, const double, const double, const double);
+    void drawIsoLine(
+        const double ,
+        const double , 
+        const double ,
+        const double ,
+        const int ,
+        const int ,
+        const double ,
+        auto & ,
+        auto & ,
+        auto &,
+        auto );
+    vec4 transferColor(const double, vec4, vec4);
+
 protected:
     /// Our main computation function
     virtual void process() override;
@@ -93,6 +108,7 @@ public:
 public:
     // Basic settings
     BoolProperty propShowGrid;
+    BoolProperty propGaussFilter;
     FloatVec4Property propGridColor;
     TemplateOptionProperty<int> propDeciderType;
     Int64Property propRandomSeed;
