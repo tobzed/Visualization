@@ -230,27 +230,18 @@ void MarchingSquares::process() {
     // smoothedField.getValueAtVertex(ij);
 
     ScalarField2 smoothedField = ScalarField2(nVertPerDim, bBoxMin, bBoxMax - bBoxMin);
-    if(propGaussFilter.get()) {
+    if( propGaussFilter.get() ) {
         double kernel[] = {1,4,6,4,1};
         for(int x = 0; x < nVertPerDim[0]; x++) {
             for(int y = 0; y < nVertPerDim[1]; y++) {
                 double tmp_val = 0;
                 for(int i = -2; i < 3; i++) {
                     tmp_val += y+i < 0 || y+i >= nVertPerDim[1] ? 0 : kernel[i+2]*grid.getValueAtVertex({x,y+i});
-                   //tmp_val += x+i < 0 || x+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
+                    tmp_val += x+i < 0 || x+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
                 }
                 smoothedField.setValueAtVertex({x,y}, tmp_val/256);
             }
         }
-        // for(int y = 0; y < nVertPerDim[1]; y++) {
-        //     for(int x = 0; x < nVertPerDim[0]; x++) {
-        //         double tmp_val = smoothedField.getValueAtVertex({x,y});
-        //         for(int i = -2; i < 3; i++) {
-        //             tmp_val += x+i < 0 || y+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
-        //         }
-        //         smoothedField.setValueAtVertex({x,y}, tmp_val/256);
-        //     }
-        // }
         grid = smoothedField;
     }
 
@@ -283,12 +274,11 @@ void MarchingSquares::process() {
         // the minimum and maximum value
 
         auto numLines = propNumContours.get();
-        double stepSize = (maxValue - minValue ) / (numLines+1);
+        double stepSize = (maxValue - minValue) / (numLines+1);
         vec4 minColor = propIsoTransferFunc.get().sample(0.0f);
         vec4 maxColor = propIsoTransferFunc.get().sample(1.0f);
-        double currentValue = minValue;
-        for(int i = 1; i < numLines; i++) {
-            currentValue += i*stepSize;
+        double currentValue = minValue + stepSize;
+        for(int i = 0; i < numLines; i++) {
             drawIsoLine(
                 bBoxMin[0],
                 bBoxMin[1],
@@ -302,6 +292,7 @@ void MarchingSquares::process() {
                 vertices,
                 transferColor( (currentValue-minValue)/(maxValue-minValue), minColor, maxColor)
             );
+            currentValue += stepSize;
         }
 
         // TODO (Bonus): Use the transfer function property to assign a color
