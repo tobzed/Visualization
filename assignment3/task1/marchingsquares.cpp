@@ -237,19 +237,20 @@ void MarchingSquares::process() {
                 double tmp_val = 0;
                 for(int i = -2; i < 3; i++) {
                     tmp_val += y+i < 0 || y+i >= nVertPerDim[1] ? 0 : kernel[i+2]*grid.getValueAtVertex({x,y+i});
-                }
-                smoothedField.setValueAtVertex({x,y}, tmp_val);
-            }
-        }
-        for(int y = 0; y < nVertPerDim[1]; y++) {
-            for(int x = 0; x < nVertPerDim[0]; x++) {
-                double tmp_val = smoothedField.getValueAtVertex({x,y});
-                for(int i = -2; i < 3; i++) {
-                    tmp_val += x+i < 0 || y+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
+                   //tmp_val += x+i < 0 || x+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
                 }
                 smoothedField.setValueAtVertex({x,y}, tmp_val/256);
             }
         }
+        // for(int y = 0; y < nVertPerDim[1]; y++) {
+        //     for(int x = 0; x < nVertPerDim[0]; x++) {
+        //         double tmp_val = smoothedField.getValueAtVertex({x,y});
+        //         for(int i = -2; i < 3; i++) {
+        //             tmp_val += x+i < 0 || y+i >= nVertPerDim[0] ? 0 : kernel[i+2]*grid.getValueAtVertex({x+i,y});
+        //         }
+        //         smoothedField.setValueAtVertex({x,y}, tmp_val/256);
+        //     }
+        // }
         grid = smoothedField;
     }
 
@@ -282,10 +283,12 @@ void MarchingSquares::process() {
         // the minimum and maximum value
 
         auto numLines = propNumContours.get();
-        double stepSize = (maxValue - minValue ) / numLines;
+        double stepSize = (maxValue - minValue ) / (numLines+1);
         vec4 minColor = propIsoTransferFunc.get().sample(0.0f);
         vec4 maxColor = propIsoTransferFunc.get().sample(1.0f);
-        for(double currentValue = minValue+stepSize/2; currentValue <= maxValue; currentValue += stepSize) {
+        double currentValue = minValue;
+        for(int i = 1; i < numLines; i++) {
+            currentValue += i*stepSize;
             drawIsoLine(
                 bBoxMin[0],
                 bBoxMin[1],
