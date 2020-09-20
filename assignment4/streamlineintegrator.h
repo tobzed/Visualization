@@ -104,6 +104,8 @@ public:
     // BoolProperty propertyName4;
 
     BoolProperty backwardProp;
+    BoolProperty propNormalize;
+
     IntProperty propNumSteps;
     DoubleProperty propStepSize;
 

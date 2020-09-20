@@ -44,7 +44,7 @@ public:
     // Pass any other properties that influence the integration process
     // Examples would be the stepsize, inegreation direction, ...
 
-    static dvec2 RK4(const VectorField2& vectorField, const dvec2& position, const double stepSize);
+    static dvec2 RK4(const VectorField2& vectorField, const dvec2& position, const double stepSize, const double dir, const bool normal);
     
     static dvec2 Euler(const VectorField2& vectorField, const dvec2& position, const double stepSize);
 };

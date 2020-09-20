@@ -151,7 +151,7 @@ void EulerRK4Comparison::process() {
     // RK4 method
     currentPoint = propStartPoint.get();
     for (int i = 0; i < numberPointsRK4.get(); i++) {
-        currentPoint = Integrator::RK4( vectorField, currentPoint, stepSizeRK4.get() );
+        currentPoint = Integrator::RK4( vectorField, currentPoint, stepSizeRK4.get(), 1.0, false );
         Integrator::drawPoint(currentPoint, colorRK4.get(), indexBufferRK4Points.get(), vertices);
         Integrator::drawNextPointInPolyline(currentPoint, colorRK4.get(), indexBufferRK4.get(), vertices);
     }

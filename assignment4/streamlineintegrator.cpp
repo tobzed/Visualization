@@ -45,6 +45,7 @@ StreamlineIntegrator::StreamlineIntegrator()
     , backwardProp("backwardIntegration", "Backward integration", false)
     , propNumSteps("numSteps", "Number of steps", 50, 1, 300)
     , propStepSize("stepSize", "Step size", 0.5, 0, 1)
+    , propNormalize("norm", "Normalize", false)
 
 {
     // Register Ports
@@ -67,6 +68,8 @@ StreamlineIntegrator::StreamlineIntegrator()
     addProperty(backwardProp);
     addProperty(propNumSteps);
     addProperty(propStepSize);
+    addProperty(propNormalize);
+
     // Show properties for a single seed and hide properties for multiple seeds
     // (TODO)
     propSeedMode.onChange([this]() {
@@ -140,7 +143,7 @@ void StreamlineIntegrator::process() {
         // TODO: Create one stream line from the given start point
         vec2 currentPoint = startPoint;
         for (int i = 0; i < propNumSteps.get(); i++) {
-            currentPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get() ? -1.0 : 1.0 );
+            currentPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get() ? -1.0 : 1.0, propNormalize.get() );
             Integrator::drawPoint(currentPoint, black, indexBufferPoints.get(), vertices);
             Integrator::drawNextPointInPolyline(currentPoint, black, indexBufferPolyLine.get(), vertices);
         }
