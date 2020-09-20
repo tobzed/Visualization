@@ -10,17 +10,17 @@
 
 #pragma once
 
-#include <labmarchingsquares/labmarchingsquaresmoduledefine.h>
 #include <inviwo/core/common/inviwo.h>
-#include <inviwo/core/processors/processor.h>
-#include <inviwo/core/ports/volumeport.h>
+#include <inviwo/core/datastructures/geometry/basicmesh.h>
+#include <inviwo/core/datastructures/volume/volumeram.h>
 #include <inviwo/core/ports/meshport.h>
+#include <inviwo/core/ports/volumeport.h>
+#include <inviwo/core/processors/processor.h>
 #include <inviwo/core/properties/boolproperty.h>
 #include <inviwo/core/properties/optionproperty.h>
 #include <inviwo/core/properties/ordinalproperty.h>
 #include <inviwo/core/properties/transferfunctionproperty.h>
-#include <inviwo/core/datastructures/volume/volumeram.h>
-#include <inviwo/core/datastructures/geometry/basicmesh.h>
+#include <labmarchingsquares/labmarchingsquaresmoduledefine.h>
 #include <labutils/scalarvectorfield.h>
 
 #include <random>
@@ -33,39 +33,42 @@ namespace inviwo {
     Extraction of isocontours in 2D with the marching squares algorithm.
 
     ### Inports
-      * __data__ The input is a 2-dimensional scalar field (with a single value at each position
-      represented in a 2-dimension uniform structured grid.
+      * __data__ The input is a 2-dimensional scalar field (with a single value
+   at each position represented in a 2-dimension uniform structured grid.
 
     ### Outports
       * __isolinesmesh__ Mesh with (possibly multiple) iso contours
       * __gridmesh__ Mesh with boundling box and potentially grid lines
 
     ### Properties
-      * __propShowGrid__ Display grid lines if true, do not display grid lines if false.
+      * __propShowGrid__ Display grid lines if true, do not display grid lines
+   if false.
       * __propGridColor__ Color of the grid lines
       * __propDeciderType__ Type of decider for ambiguities in marching squares
-	  * __propSeed__ Seed for random decision
+          * __propSeed__ Seed for random decision
       * __propMultiple__ Display of one iso contour or multiple
       * __propIsoValue__ Iso value for one iso contour
       * __propIsoColor__ Color for iso contour(s)
-      * __propNumContours__ Number of isocontours to be displayed between minimum and maximum data
-   value
-      * __propIsoTransferFunc__ Transfer function to be used to color those multiple contours
+      * __propNumContours__ Number of isocontours to be displayed between
+   minimum and maximum data value
+      * __propIsoTransferFunc__ Transfer function to be used to color those
+   multiple contours
 */
 class IVW_MODULE_LABMARCHINGSQUARES_API MarchingSquares : public Processor {
     // Friends
     // Types
-public:
+   public:
     // Construction / Deconstruction
-public:
+   public:
     MarchingSquares();
     virtual ~MarchingSquares() = default;
 
     // Methods
-public:
+   public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
     float interpolate(const double, const double, const double);
+<<<<<<< HEAD
     double asymptoticDecider(const double, const double, const double, const double);
     void drawIsoLine(
         const double ,
@@ -82,19 +85,33 @@ public:
     vec4 transferColor(const double, vec4, vec4);
 
 protected:
+=======
+    double asymptoticDecider(const double topLeft, const double bottomLeft,
+                             const double bottomRight, const double topRight);
+    void drawContour(
+        Field<2, 1>& grid,
+        std::shared_ptr<BufferRAMPrecision<unsigned int, BufferTarget::Index> >&
+            indexBuffer,
+        std::vector<BasicMesh::Vertex>& vertices, const double isoValue);
+    dvec2 getExtrema(Field<2, 1>& grid);
+
+   protected:
+>>>>>>> 34e17c9ed17f7e91051862a09f5aec3326fc5f66
     /// Our main computation function
     virtual void process() override;
 
-    // (TODO: Helper functions can be defined here and then implemented in the .cpp)
+    // (TODO: Helper functions can be defined here and then implemented in the
+    // .cpp)
 
     // Draw a line segment from v1 to v2 with a color
     void drawLineSegment(const vec2& v1, const vec2& v2, const vec4& color,
-                         IndexBufferRAM* indexBuffer, std::vector<BasicMesh::Vertex>& vertices);
+                         IndexBufferRAM* indexBuffer,
+                         std::vector<BasicMesh::Vertex>& vertices);
 
-	float randomValue(const float min, const float max) const;
+    float randomValue(const float min, const float max) const;
 
     // Ports
-public:
+   public:
     // Input data
     VolumeInport inData;
 
@@ -105,7 +122,7 @@ public:
     MeshOutport meshGridOut;
 
     // Properties
-public:
+   public:
     // Basic settings
     BoolProperty propShowGrid;
     BoolProperty propGaussFilter;
@@ -121,10 +138,9 @@ public:
     TransferFunctionProperty propIsoTransferFunc;
 
     // Attributes
-private:
+   private:
     mutable std::mt19937 randGenerator;
     mutable std::uniform_real_distribution<float> uniformReal;
-
 };
 
 }  // namespace inviwo
