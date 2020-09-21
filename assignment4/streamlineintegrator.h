@@ -25,6 +25,8 @@
 #include <labstreamlines/labstreamlinesmoduledefine.h>
 #include <labutils/scalarvectorfield.h>
 
+#include <random>
+
 namespace inviwo {
 
 /** \docpage{org.inviwo.StreamlineIntegrator, Streamline Integrator}
@@ -64,7 +66,9 @@ public:
 public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
-
+    bool outsideBoundary(dvec2);
+    void integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine);
+    float randomValue(const float min, const float max) const;
 protected:
     /// Our main computation function
     virtual void process() override;
@@ -108,11 +112,23 @@ public:
 
     IntProperty propNumSteps;
     DoubleProperty propStepSize;
+    DoubleProperty propArcLength;
+    DoubleProperty propVelocity;
+
+    IntProperty propNumRandLines;
+    BoolProperty propUniformGrid;
+    Int64Property propRandomSeed;
+
+    IntProperty propNumVertX;
+    IntProperty propNumVertY;
 
     // Attributes
 private:
     dvec2 BBoxMin_{0, 0};
     dvec2 BBoxMax_{0, 0};
+
+    mutable std::mt19937 randGenerator;
+    mutable std::uniform_real_distribution<float> uniformReal;
 };
 
 }  // namespace inviwo

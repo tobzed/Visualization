@@ -38,6 +38,8 @@ StreamlineIntegrator::StreamlineIntegrator()
     , propNumStepsTaken("numstepstaken", "Number of actual steps", 0, 0, 100000)
     , mouseMoveStart("mouseMoveStart", "Move Start", [this](Event* e) { eventMoveStart(e); },
                      MouseButton::Left, MouseState::Press | MouseState::Move)
+    , propRandomSeed("seed", "Random Seed", 0, 0, std::mt19937::max())
+
 // TODO: Initialize additional properties
 // propertyName("propertyIdentifier", "Display Name of the Propery",
 // default value (optional), minimum value (optional), maximum value (optional),
@@ -46,6 +48,12 @@ StreamlineIntegrator::StreamlineIntegrator()
     , propNumSteps("numSteps", "Number of steps", 50, 1, 300)
     , propStepSize("stepSize", "Step size", 0.5, 0, 1)
     , propNormalize("norm", "Normalize", false)
+    , propArcLength("arcLength", "Arc length", 1, 0, 5)
+    , propVelocity("velocity", "Minimum velocity", 0.5, 0.0, 1.0)
+    , propNumRandLines("numberLines", "# random lines", 3, 0, 1000)
+    , propUniformGrid("uniform", "Uniform grid", false)
+    , propNumVertX("vertecesX", "Grid points horisontal axis", 10, 0, 150)
+    , propNumVertY("vertecesY", "Grid points vertical axis", 10, 0, 150)
 
 {
     // Register Ports
@@ -69,6 +77,12 @@ StreamlineIntegrator::StreamlineIntegrator()
     addProperty(propNumSteps);
     addProperty(propStepSize);
     addProperty(propNormalize);
+    addProperty(propArcLength);
+    addProperty(propVelocity);
+    addProperty(propNumRandLines);
+    addProperty(propUniformGrid);
+    addProperty(propNumVertX);
+    addProperty(propNumVertY);
 
     // Show properties for a single seed and hide properties for multiple seeds
     // (TODO)
@@ -76,9 +90,11 @@ StreamlineIntegrator::StreamlineIntegrator()
         if (propSeedMode.get() == 0) {
             util::show(propStartPoint, mouseMoveStart, propNumStepsTaken);
             // util::hide(...)
+            util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
         } else {
             util::hide(propStartPoint, mouseMoveStart, propNumStepsTaken);
             // util::show(...)
+            util::show(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
         }
     });
 }
@@ -136,29 +152,114 @@ void StreamlineIntegrator::process() {
     if (propSeedMode.get() == 0) {
         auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
         auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
-        vec2 startPoint = propStartPoint.get();
-        // Draw start point
-        Integrator::drawPoint(startPoint, vec4(0, 0, 0, 1), indexBufferPoints.get(), vertices);
-
-        // TODO: Create one stream line from the given start point
-        vec2 currentPoint = startPoint;
-        for (int i = 0; i < propNumSteps.get(); i++) {
-            currentPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get() ? -1.0 : 1.0, propNormalize.get() );
-            Integrator::drawPoint(currentPoint, black, indexBufferPoints.get(), vertices);
-            Integrator::drawNextPointInPolyline(currentPoint, black, indexBufferPolyLine.get(), vertices);
-        }
-        // TODO: Use the propNumStepsTaken property to show how many steps have actually been
-        // integrated This could be different from the desired number of steps due to stopping
-        // conditions (too slow, boundary, ...)
-        propNumStepsTaken.set(0);
-
+        integrateLine(propStartPoint.get(), vectorField, vertices, indexBufferPoints, indexBufferPolyLine);
     } else {
-        // TODO: Seed multiple stream lines either randomly or using a uniform grid
-        // (TODO: Bonus, sample randomly according to magnitude of the vector field)
+        if(propUniformGrid.get()) {
+            int dimX = propNumVertX.get();
+            int dimY = propNumVertY.get();
+            double stepX = 0;
+            double stepY = 0;
+        
+            if(dimX > 1) {
+                stepX = (BBoxMax_[0] - BBoxMin_[0]) / (dimX - 1);
+            }
+            if(dimY > 1) {
+                stepY = (BBoxMax_[1] - BBoxMin_[1]) / (dimY - 1);
+            }
+        
+            for(int x = 0; x < dimX; x++) {
+                for(int y = 0; y < dimY; y++) {
+                auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
+                auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
+                integrateLine(vec2(BBoxMin_[0] + x*stepX, BBoxMin_[1] + y*stepY), vectorField, vertices, indexBufferPoints, indexBufferPolyLine);    
+                }
+            }
+        } else {
+            randGenerator.seed(static_cast<std::mt19937::result_type>(propRandomSeed.get()));
+            int numLines = propNumRandLines.get();
+            for(int i = 0; i < numLines; i++) {
+                auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
+                auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
+                integrateLine(vec2(randomValue(BBoxMin_[0],BBoxMax_[0]), randomValue(BBoxMin_[1],BBoxMax_[1])), vectorField, vertices, indexBufferPoints, indexBufferPolyLine);
+            }
+        }
     }
 
     mesh->addVertices(vertices);
     meshOut.setData(mesh);
 }  // namespace inviwo
+
+float StreamlineIntegrator::randomValue(const float min, const float max) const {
+    return min + uniformReal(randGenerator) * (max - min);
+}
+
+void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine) {
+    
+    vec2 currentPoint = startPoint;
+    vec2 newPoint;
+    vec2 velocity_v;
+    vec4 black = vec4(0,0,0,1);
+    double arc_length = 0.0;
+    int num_steps = 0;
+    double diff;
+    const double ZERO = 1e-12;
+    
+    propNumStepsTaken.set(0);
+    
+    Integrator::drawPoint(currentPoint, vec4(1.0, 0, 0, 1), indexBufferPoints.get(), vertices);
+    Integrator::drawNextPointInPolyline(currentPoint, vec4(1.0, 0, 0, 1), indexBufferPolyLine.get(), vertices);
+
+    if( outsideBoundary(currentPoint) ) {
+        return;
+    }
+
+    for ( int i = 0; i < propNumSteps.get(); i++ ) {
+                    
+        // compute next point
+        newPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get(), propNormalize.get() );
+
+        // check boundaries
+        if( outsideBoundary(newPoint) ) {
+            break;
+        }
+
+        // check not in zero or less than min velocity
+        diff = distance(currentPoint, newPoint);
+        if( diff <= ZERO ) {
+            LogProcessorInfo("ZERO");
+            break;
+        }
+
+        // check velocity
+        velocity_v = (newPoint - currentPoint) * ( 1.0/propStepSize.get() );
+        if( length(velocity_v) < propVelocity.get() ) {
+            break;
+        }
+
+        // check arc length
+        if( arc_length + diff > propArcLength.get() ) {
+            break;
+        }
+
+        arc_length += diff;
+
+        //add new point
+        Integrator::drawNextPointInPolyline(newPoint, black, indexBufferPolyLine.get(), vertices);
+        Integrator::drawPoint(newPoint, black, indexBufferPoints.get(), vertices);
+        
+        // increment step counter
+        num_steps++;
+        currentPoint = newPoint;
+    }
+    
+    propNumStepsTaken.set(num_steps);
+}
+
+bool StreamlineIntegrator::outsideBoundary(dvec2 point) {
+    return  point[0] < BBoxMin_[0] || // outside left side
+            point[1] < BBoxMin_[1] || // outside bottom
+            point[0] > BBoxMax_[0] || // outside right side
+            point[1] > BBoxMax_[1] ;  // outside top
+}
 
 }  // namespace inviwo

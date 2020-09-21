@@ -28,6 +28,7 @@ public:
 
     // Methods
 public:
+    static dvec2 normalize(const dvec2&);
     // Add a point to a mesh
     static void drawPoint(const dvec2& p, const vec4& color, IndexBufferRAM* indexBuffer,
                           std::vector<BasicMesh::Vertex>& vertices);
@@ -44,7 +45,7 @@ public:
     // Pass any other properties that influence the integration process
     // Examples would be the stepsize, inegreation direction, ...
 
-    static dvec2 RK4(const VectorField2& vectorField, const dvec2& position, const double stepSize, const bool backward, const bool normal, const double min_vel);
+    static dvec2 RK4(const VectorField2& vectorField, dvec2 position, double stepSize, bool backward, bool normal);
     
     static dvec2 Euler(const VectorField2& vectorField, const dvec2& position, const double stepSize);
 };
