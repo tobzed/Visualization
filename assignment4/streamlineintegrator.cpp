@@ -47,14 +47,14 @@ StreamlineIntegrator::StreamlineIntegrator()
     , backwardProp("backwardIntegration", "Backward integration", false)
     , propNumSteps("numSteps", "Number of steps", 50, 1, 300)
     , propStepSize("stepSize", "Step size", 0.5, 0, 1)
-    , propNormalize("norm", "Normalize", false)
-    , propArcLength("arcLength", "Arc length", 1, 0, 5)
+    , propArcLength("selectArcLength", "select arc length", 1, 0, 10)
+    , propActualArcLen("arcLen", "Arc length", 0, 0, 10)
     , propVelocity("velocity", "Minimum velocity", 0.5, 0.0, 1.0)
+    , propNormalize("norm", "Normalize", false)
     , propNumRandLines("numberLines", "# random lines", 3, 0, 1000)
     , propUniformGrid("uniform", "Uniform grid", false)
     , propNumVertX("vertecesX", "Grid points horisontal axis", 10, 0, 150)
     , propNumVertY("vertecesY", "Grid points vertical axis", 10, 0, 150)
-
 {
     // Register Ports
     addPort(inData);
@@ -83,16 +83,20 @@ StreamlineIntegrator::StreamlineIntegrator()
     addProperty(propUniformGrid);
     addProperty(propNumVertX);
     addProperty(propNumVertY);
-
+    addProperty(propActualArcLen);
+    propActualArcLen.setReadOnly(true);
+    propActualArcLen.setSemantics(PropertySemantics::Text);
+    
     // Show properties for a single seed and hide properties for multiple seeds
     // (TODO)
+    util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
     propSeedMode.onChange([this]() {
         if (propSeedMode.get() == 0) {
-            util::show(propStartPoint, mouseMoveStart, propNumStepsTaken);
+            util::show(propStartPoint, mouseMoveStart, propNumStepsTaken, propActualArcLen);
             // util::hide(...)
             util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
         } else {
-            util::hide(propStartPoint, mouseMoveStart, propNumStepsTaken);
+            util::hide(propStartPoint, mouseMoveStart, propNumStepsTaken, propActualArcLen);
             // util::show(...)
             util::show(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
         }
@@ -202,7 +206,7 @@ void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, a
     double arc_length = 0.0;
     int num_steps = 0;
     double diff;
-    const double ZERO = 1e-12;
+    const double ZERO = 1e-8;
     
     propNumStepsTaken.set(0);
     
@@ -223,7 +227,7 @@ void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, a
             break;
         }
 
-        // check not in zero or less than min velocity
+        // check not in zero
         diff = distance(currentPoint, newPoint);
         if( diff <= ZERO ) {
             LogProcessorInfo("ZERO");
@@ -251,7 +255,7 @@ void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, a
         num_steps++;
         currentPoint = newPoint;
     }
-    
+    propActualArcLen.set(arc_length);
     propNumStepsTaken.set(num_steps);
 }
 

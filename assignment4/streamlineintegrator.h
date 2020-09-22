@@ -114,7 +114,8 @@ public:
     DoubleProperty propStepSize;
     DoubleProperty propArcLength;
     DoubleProperty propVelocity;
-
+    DoubleProperty propActualArcLen;
+    
     IntProperty propNumRandLines;
     BoolProperty propUniformGrid;
     Int64Property propRandomSeed;
