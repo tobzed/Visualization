@@ -18,7 +18,7 @@ dvec2 Integrator::Euler(const VectorField2& vectorField, const dvec2& position, 
     return position + stepSize * vectorField.interpolate(position);
 }
 
-dvec2 Integrator::RK4(const VectorField2& vectorField, dvec2 position, double stepSize, bool backward, bool normal) {
+dvec2 Integrator::RK4(const VectorField2& vectorField, dvec2 position, double stepSize, bool backward) {
 
     dvec2 v1;
     dvec2 v2;
@@ -27,27 +27,13 @@ dvec2 Integrator::RK4(const VectorField2& vectorField, dvec2 position, double st
     dvec2 v;
     double dir = backward ? -1.0 : 1.0;
 
-    if(normal) {
-        v1 = Integrator::normalize(vectorField.interpolate( position ));
-        v2 = Integrator::normalize(vectorField.interpolate( position + (stepSize/2.0) * v1));
-        v3 = Integrator::normalize(vectorField.interpolate( position + (stepSize/2.0) * v2));
-        v4 = Integrator::normalize(vectorField.interpolate( position + stepSize * v3 ));
-        v = Integrator::normalize(
-                        (v1 / (double)6.) + 
-                        (v2 / (double)3.) + 
-                        (v3 / (double)3.) + 
-                        (v4 / (double)6.) 
-                    );
-    } else {
-        v1 = vectorField.interpolate( position );
-        v2 = vectorField.interpolate( position + (stepSize/2.0) * v1);
-        v3 = vectorField.interpolate( position + (stepSize/2.0) * v2);
-        v4 = vectorField.interpolate( position + stepSize * v3 );
-        v =     (v1 / (double)6.) + 
-                (v2 / (double)3.) + 
-                (v3 / (double)3.) + 
-                (v4 / (double)6.) ;
-    }
+    v1 = vectorField.interpolate( position );
+    v2 = vectorField.interpolate( position + (stepSize/2.0) * v1);
+    v3 = vectorField.interpolate( position + (stepSize/2.0) * v2);
+    v4 = vectorField.interpolate( position + stepSize * v3 );
+    v =     (v1 / (double)6.) + (v2 / (double)3.) + 
+            (v3 / (double)3.) + (v4 / (double)6.) ;
+    
     return position + stepSize * dir * v;
 }
 
@@ -75,14 +61,10 @@ void Integrator::drawLineSegment(const dvec2& v1, const dvec2& v2, const vec4& c
 
 dvec2 Integrator::normalize(const dvec2 & v) {
     double len = sqrt(v[0]*v[0] + v[1]*v[1]);
-    dvec2 res;
-    res[0] = v[0];
-    res[1] = v[1];
-    if(len > 0.0) {
-        res[0] /= len;
-        res[1] /= len;
+    if( len <= 1e-8) {
+        return dvec2(0.0,0.0);
     }
-    return res;
+    return dvec2(v[0]/len, v[1]/len);
 }
 
 }  // namespace inviwo

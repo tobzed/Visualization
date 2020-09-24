@@ -49,7 +49,7 @@ StreamlineIntegrator::StreamlineIntegrator()
     , propStepSize("stepSize", "Step size", 0.5, 0, 1)
     , propArcLength("selectArcLength", "select arc length", 1, 0, 10)
     , propActualArcLen("arcLen", "Arc length", 0, 0, 10)
-    , propVelocity("velocity", "Minimum velocity", 0.5, 0.0, 1.0)
+    , propVelocity("velocity", "Minimum velocity", 0.5, 0.0, 1.5)
     , propNormalize("norm", "Normalize", false)
     , propNumRandLines("numberLines", "# random lines", 3, 0, 1000)
     , propUniformGrid("uniform", "Uniform grid", false)
@@ -79,6 +79,7 @@ StreamlineIntegrator::StreamlineIntegrator()
     addProperty(propNormalize);
     addProperty(propArcLength);
     addProperty(propVelocity);
+    //addProperty(propRandomSeed);
     addProperty(propNumRandLines);
     addProperty(propUniformGrid);
     addProperty(propNumVertX);
@@ -89,16 +90,16 @@ StreamlineIntegrator::StreamlineIntegrator()
     
     // Show properties for a single seed and hide properties for multiple seeds
     // (TODO)
-    util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
+    util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY, propRandomSeed);
     propSeedMode.onChange([this]() {
         if (propSeedMode.get() == 0) {
             util::show(propStartPoint, mouseMoveStart, propNumStepsTaken, propActualArcLen);
             // util::hide(...)
-            util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
+            util::hide(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY, propRandomSeed);
         } else {
             util::hide(propStartPoint, mouseMoveStart, propNumStepsTaken, propActualArcLen);
             // util::show(...)
-            util::show(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY);
+            util::show(propNumRandLines, propUniformGrid, propRandomSeed, propNumVertX, propNumVertY, propRandomSeed);
         }
     });
 }
@@ -199,52 +200,63 @@ float StreamlineIntegrator::randomValue(const float min, const float max) const 
 
 void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine) {
     
-    vec2 currentPoint = startPoint;
-    vec2 newPoint;
-    vec2 velocity_v;
+    dvec2 currentPoint = startPoint;
+    dvec2 newPoint;
+    dvec2 velocity_v;
     vec4 black = vec4(0,0,0,1);
     double arc_length = 0.0;
     int num_steps = 0;
     double diff;
-    const double ZERO = 1e-8;
+    double mag;
+    const double ZERO = 1e-5;
     
     propNumStepsTaken.set(0);
     
-    Integrator::drawPoint(currentPoint, vec4(1.0, 0, 0, 1), indexBufferPoints.get(), vertices);
-    Integrator::drawNextPointInPolyline(currentPoint, vec4(1.0, 0, 0, 1), indexBufferPolyLine.get(), vertices);
+    Integrator::drawPoint(startPoint, vec4(1.0, 0, 0, 1), indexBufferPoints.get(), vertices);
+    Integrator::drawNextPointInPolyline(startPoint, vec4(1.0, 0, 0, 1), indexBufferPolyLine.get(), vertices);
 
-    if( outsideBoundary(currentPoint) ) {
+    if( outsideBoundary(startPoint) ) {
         return;
     }
 
     for ( int i = 0; i < propNumSteps.get(); i++ ) {
                     
         // compute next point
-        newPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get(), propNormalize.get() );
+        newPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get() );
+        
+        // get the velocity vector and its magnitude, 
+        // and the distance between currentPoint and newPoint
+        velocity_v = (newPoint - currentPoint) / propStepSize.get();
+        mag = length(velocity_v);diff = distance(currentPoint, newPoint);
+        diff = distance(currentPoint, newPoint);
+        
+        // check the velocity
+        if( !propNormalize.get() && mag < propVelocity.get() ) {
+            break;
+        } else if( propNormalize.get() && propVelocity.get() > 1 ) {
+            break;
+        }
+        
+        // check not in zero
+        if( diff <= ZERO ) {
+            break;
+        }
 
+        // normalize
+        if( propNormalize.get() ) {
+            newPoint = currentPoint + propStepSize.get() * Integrator::normalize( velocity_v );
+            diff = propStepSize.get();
+        } 
+        
         // check boundaries
         if( outsideBoundary(newPoint) ) {
             break;
-        }
-
-        // check not in zero
-        diff = distance(currentPoint, newPoint);
-        if( diff <= ZERO ) {
-            LogProcessorInfo("ZERO");
-            break;
-        }
-
-        // check velocity
-        velocity_v = (newPoint - currentPoint) * ( 1.0/propStepSize.get() );
-        if( length(velocity_v) < propVelocity.get() ) {
-            break;
-        }
-
+        }        
+        
         // check arc length
         if( arc_length + diff > propArcLength.get() ) {
             break;
         }
-
         arc_length += diff;
 
         //add new point
