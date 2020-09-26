@@ -157,8 +157,14 @@ void StreamlineIntegrator::process() {
     if (propSeedMode.get() == 0) {
         auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
         auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
-        integrateLine(propStartPoint.get(), vectorField, vertices, indexBufferPoints, indexBufferPolyLine);
+        integrateLine(propStartPoint.get(), vectorField, vertices, indexBufferPoints, indexBufferPolyLine, false);
+        if(backwardProp.get()) {
+            auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
+            auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
+            integrateLine(propStartPoint.get(), vectorField, vertices, indexBufferPoints, indexBufferPolyLine, true);
+        }
     } else {
+        dvec2 p;
         if(propUniformGrid.get()) {
             int dimX = propNumVertX.get();
             int dimY = propNumVertY.get();
@@ -174,18 +180,33 @@ void StreamlineIntegrator::process() {
         
             for(int x = 0; x < dimX; x++) {
                 for(int y = 0; y < dimY; y++) {
+                p[0] = BBoxMin_[0] + x*stepX;
+                p[1] = BBoxMin_[1] + y*stepY;
                 auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
                 auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
-                integrateLine(vec2(BBoxMin_[0] + x*stepX, BBoxMin_[1] + y*stepY), vectorField, vertices, indexBufferPoints, indexBufferPolyLine);    
+                integrateLine(p, vectorField, vertices, indexBufferPoints, indexBufferPolyLine, false);    
+                if(backwardProp.get()) {
+                    auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
+                    auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
+                    integrateLine(p, vectorField, vertices, indexBufferPoints, indexBufferPolyLine, true);    
+                }
+                
                 }
             }
         } else {
             randGenerator.seed(static_cast<std::mt19937::result_type>(propRandomSeed.get()));
             int numLines = propNumRandLines.get();
             for(int i = 0; i < numLines; i++) {
+                p[0] = randomValue(BBoxMin_[0],BBoxMax_[0]);
+                p[1] = randomValue(BBoxMin_[1],BBoxMax_[1]);
                 auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
                 auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
-                integrateLine(vec2(randomValue(BBoxMin_[0],BBoxMax_[0]), randomValue(BBoxMin_[1],BBoxMax_[1])), vectorField, vertices, indexBufferPoints, indexBufferPolyLine);
+                integrateLine(p, vectorField, vertices, indexBufferPoints, indexBufferPolyLine, false);
+                if(backwardProp.get()) {
+                    auto indexBufferPoints = mesh->addIndexBuffer(DrawType::Points, ConnectivityType::None);
+                    auto indexBufferPolyLine = mesh->addIndexBuffer(DrawType::Lines, ConnectivityType::Strip);
+                    integrateLine(p, vectorField, vertices, indexBufferPoints, indexBufferPolyLine, true);
+                }
             }
         }
     }
@@ -198,55 +219,41 @@ float StreamlineIntegrator::randomValue(const float min, const float max) const 
     return min + uniformReal(randGenerator) * (max - min);
 }
 
-void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine) {
+void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine, const bool backward_line) {
     
     dvec2 currentPoint = startPoint;
     dvec2 newPoint;
-    dvec2 velocity_v;
     vec4 black = vec4(0,0,0,1);
     double arc_length = 0.0;
     int num_steps = 0;
     double diff;
-    double mag;
     const double ZERO = 1e-5;
     
     propNumStepsTaken.set(0);
     
     Integrator::drawPoint(startPoint, vec4(1.0, 0, 0, 1), indexBufferPoints.get(), vertices);
     Integrator::drawNextPointInPolyline(startPoint, vec4(1.0, 0, 0, 1), indexBufferPolyLine.get(), vertices);
-
+    
     if( outsideBoundary(startPoint) ) {
+        return;
+    }
+
+    if( propStepSize.get() == 0.0 ) {
         return;
     }
 
     for ( int i = 0; i < propNumSteps.get(); i++ ) {
                     
         // compute next point
-        newPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backwardProp.get() );
+        newPoint = Integrator::RK4( vectorField, currentPoint, propStepSize.get(), backward_line, propNormalize.get(), propVelocity.get() );
         
-        // get the velocity vector and its magnitude, 
-        // and the distance between currentPoint and newPoint
-        velocity_v = (newPoint - currentPoint) / propStepSize.get();
-        mag = length(velocity_v);diff = distance(currentPoint, newPoint);
+        // distance between currentPoint and newPoint
         diff = distance(currentPoint, newPoint);
-        
-        // check the velocity
-        if( !propNormalize.get() && mag < propVelocity.get() ) {
-            break;
-        } else if( propNormalize.get() && propVelocity.get() > 1 ) {
-            break;
-        }
-        
+
         // check not in zero
         if( diff <= ZERO ) {
             break;
         }
-
-        // normalize
-        if( propNormalize.get() ) {
-            newPoint = currentPoint + propStepSize.get() * Integrator::normalize( velocity_v );
-            diff = propStepSize.get();
-        } 
         
         // check boundaries
         if( outsideBoundary(newPoint) ) {
@@ -267,7 +274,7 @@ void StreamlineIntegrator::integrateLine(dvec2 startPoint, auto & vectorField, a
         num_steps++;
         currentPoint = newPoint;
     }
-    propActualArcLen.set(arc_length);
+    //propActualArcLen.set(arc_length);
     propNumStepsTaken.set(num_steps);
 }
 

@@ -67,7 +67,7 @@ public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
     bool outsideBoundary(dvec2);
-    void integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine);
+    void integrateLine(dvec2 startPoint, auto & vectorField, auto & vertices, auto & indexBufferPoints, auto & indexBufferPolyLine, const bool backward_line);
     float randomValue(const float min, const float max) const;
 protected:
     /// Our main computation function
