@@ -28,20 +28,17 @@ dvec2 Integrator::RK4(const VectorField2& vectorField, dvec2 position, double st
         dvec2 v2 = glm::normalize( vectorField.interpolate( position + (stepSize/2.0) * v1 ) );
         dvec2 v3 = glm::normalize( vectorField.interpolate( position + (stepSize/2.0) * v2 ) );
         dvec2 v4 = glm::normalize( vectorField.interpolate( position + stepSize * v3 ) );
-        v =     (v1 / 6.0) + (v2 / 3.0) + 
-                (v3 /3.0) + (v4 / 6.0) ;
+        v = (v1 + 2.0*v2 + 2.0*v3 + v4)/6.0;
     } else {
         dvec2 v1 = vectorField.interpolate( position );
         dvec2 v2 = vectorField.interpolate( position + (stepSize/2.0) * v1);
         dvec2 v3 = vectorField.interpolate( position + (stepSize/2.0) * v2);
         dvec2 v4 = vectorField.interpolate( position + stepSize * v3 );
-        v = (v1 / 6.0) + (v2 / 3.0) + 
-            (v3 / 3.0) + (v4 / 6.0) ;
+        v = (v1 + 2.0*v2 + 2.0*v3 + v4)/6.0;
     }
     if(length(v) < min_vel) {
         return dvec2(position[0], position[1]);
     }
-
     return dvec2(position[0], position[1]) + stepSize * v;
 }
 

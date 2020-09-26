@@ -84,7 +84,6 @@ StreamlineIntegrator::StreamlineIntegrator()
     addProperty(propUniformGrid);
     addProperty(propNumVertX);
     addProperty(propNumVertY);
-    addProperty(propActualArcLen);
     propActualArcLen.setReadOnly(true);
     propActualArcLen.setSemantics(PropertySemantics::Text);
     
