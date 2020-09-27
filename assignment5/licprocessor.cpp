@@ -31,6 +31,8 @@ LICProcessor::LICProcessor()
     , noiseTexIn_("noiseTexIn")
     , licOut_("licOut")
 // TODO: Register additional properties
+
+    , propKrnLength("kernel", "Kernel length", 20, 0, 150)
 {
     // Register ports
     addPort(volumeIn_);
@@ -39,6 +41,7 @@ LICProcessor::LICProcessor()
 
     // Register properties
     // TODO: Register additional properties
+    addProperty(propKrnLength);
 }
 
 void LICProcessor::process() {
@@ -61,7 +64,7 @@ void LICProcessor::process() {
 
     double value = texture.readPixelGrayScale(size2_t(0, 0));
 
-    LogProcessorInfo(value);
+    LogProcessorInfo("DIMS texture:" << texDims_ << "   DIMS vector field: " << vectorFieldDims_);
 
     // Prepare the output, it has the same dimensions as the texture and rgba values in [0,255]
     auto outImage = std::make_shared<Image>(texDims_, DataVec4UInt8::get());
@@ -71,19 +74,66 @@ void LICProcessor::process() {
 
     // Hint: Output an image showing which pixels you have visited for debugging
     std::vector<std::vector<int>> visited(texDims_.x, std::vector<int>(texDims_.y, 0));
+
+    //licImage.setPixel(size2_t(i, j), dvec4(30, 100, 92, 32));
+    //licImage.setPixelGrayScale(size2_t(i, j), val);
+    
     // TODO: Implement LIC and FastLIC
     // This code instead sets all pixels to the same gray value
 
+    LIC(licTexture, texture, vectorField);
+
+    double val;
     for (size_t j = 0; j < texDims_.y; j++) {
         for (size_t i = 0; i < texDims_.x; i++) {
-            int val =  texture.readPixelGrayScale(size2_t(i, j));
-            //licImage.setPixel(size2_t(i, j), dvec4(30, 100, 92, 32));
-            // or
-            licImage.setPixelGrayScale(size2_t(i, j), val);
+            val = licTexture[i][j];
+            licImage.setPixel(size2_t(i, j), vec4(val, val, val, 255));
         }
     }
-
     licOut_.setData(outImage);
 }
+
+void LICProcessor::LIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField) {
+    for (size_t j = 0; j < texDims_.y; j++) {
+        for (size_t i = 0; i < texDims_.x; i++) {
+            vals[i][j] = singlePointLIC((double)i, (double)j, texture, vectorField);
+        }
+    }
+}
+
+double LICProcessor::singlePointLIC(double x, double y, const RGBAImage & texture, const VectorField2 & vectorField) {
+    dvec2 BBoxMin = vectorField.getBBoxMin();
+    dvec2 BBoxMax = vectorField.getBBoxMax();
+    
+    double x_ratio = (double)texDims_.x / (BBoxMax[0] - BBoxMin[0]);
+    double y_ratio = (double)texDims_.y / (BBoxMax[1] - BBoxMin[1]);
+    
+    dvec2 pointInVF(BBoxMin[0] + x / x_ratio, BBoxMin[1] + y / y_ratio);
+    
+    double stepSize = 1.0 / x_ratio;
+    int krn_length = propKrnLength.get();
+    
+    auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, krn_length, vectorField, true, true, 0.0, 1000 );
+    if(backwardRK4.size() < krn_length) {
+       krn_length = backwardRK4.size();
+    }
+    auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, krn_length, vectorField, false, true, 0.0, 1000 );
+    if(forwardRK4.size() < krn_length) {
+        krn_length = forwardRK4.size();
+    }
+
+    double value = 0.0;
+    for(int i = krn_length-1; i >= 1; i--) {
+        ivec2 pointInTex( (backwardRK4[i][0] - BBoxMin[0]) * x_ratio, (backwardRK4[i][1] - BBoxMin[1]) * y_ratio );
+        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1])) / (double)(krn_length*2 - 1);
+    }
+    
+    for(int i = 0; i < krn_length; i++) {
+        ivec2 pointInTex( (forwardRK4[i][0] - BBoxMin[0]) * x_ratio, (forwardRK4[i][1] - BBoxMin[1]) * y_ratio );
+        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1])) / (double)(krn_length*2 - 1);
+    }
+    return value;
+}
+
 
 }  // namespace inviwo

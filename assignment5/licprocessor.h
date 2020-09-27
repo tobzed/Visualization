@@ -53,7 +53,8 @@ public:
 public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
-
+    double singlePointLIC(double x, double y, const RGBAImage & texture, const VectorField2 & vectorField);
+    void LIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
 protected:
     /// Our main computation function
     virtual void process() override;
@@ -77,7 +78,8 @@ public:
     // TODO: Declare properties
     // IntProperty prop1;
     // BoolProperty prop2;
-
+    IntProperty propKrnLength;
+    
     // Attributes
 private:
     size3_t vectorFieldDims_;
