@@ -93,7 +93,6 @@ std::vector<dvec2> Integrator::integrateLine(dvec2 startPoint, double stepSize, 
         return res;
     }
     
-    
     for ( int i = 0; i < numSteps; i++ ) {
                     
         // compute next point

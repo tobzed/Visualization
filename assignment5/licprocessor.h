@@ -53,8 +53,15 @@ public:
 public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
+    
+    double min(const double & d1, const double & d2);
     double singlePointLIC(double x, double y, const RGBAImage & texture, const VectorField2 & vectorField);
     void LIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
+
+    //void fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
+    //void tryFastLIC(double x, double y, const & RGBAImage texture, const & VectorField2 vectorField, auto & vals);
+
+    std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward);
 protected:
     /// Our main computation function
     virtual void process() override;
@@ -79,7 +86,7 @@ public:
     // IntProperty prop1;
     // BoolProperty prop2;
     IntProperty propKrnLength;
-    
+
     // Attributes
 private:
     size3_t vectorFieldDims_;
