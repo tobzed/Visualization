@@ -54,6 +54,7 @@ public:
     virtual const ProcessorInfo getProcessorInfo() const override;
     static const ProcessorInfo processorInfo_;
     
+    bool onBoundary(double x, double y);
     double min(const double & d1, const double & d2);
     double singlePointLIC(double x, double y, const RGBAImage & texture, const VectorField2 & vectorField);
     void LIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
@@ -61,7 +62,7 @@ public:
     //void fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
     //void tryFastLIC(double x, double y, const & RGBAImage texture, const & VectorField2 vectorField, auto & vals);
 
-    std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward);
+    std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len);
 protected:
     /// Our main computation function
     virtual void process() override;

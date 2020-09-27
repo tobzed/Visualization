@@ -29,6 +29,7 @@ NoiseTextureGenerator::NoiseTextureGenerator()
     , texOut_("texOut")
     , texSize_("texSize", "Texture Size", vec2(512, 512), vec2(1, 1), vec2(2048, 2048), vec2(1, 1))
     , propRandomSeed("seed", "Random Seed", 0, 0, std::mt19937::max())
+    , propTextureType("textureType", "Texture type" )
 // TODO: Register additional properties
 {
     // Register ports
@@ -39,6 +40,10 @@ NoiseTextureGenerator::NoiseTextureGenerator()
 
     // TODO: Register additional properties
     addProperty(propRandomSeed);
+
+    propTextureType.addOption("greyscale", "Greyscale texture", 0);
+    propTextureType.addOption("blackwhite", "Black white texture", 1);
+    addProperty(propTextureType);
     propRandomSeed.setSemantics(PropertySemantics::Text);
 }
 
@@ -81,7 +86,14 @@ void NoiseTextureGenerator::process() {
 
     for (int j = 0; j < texSize_.get().y; j++) {
         for (int i = 0; i < texSize_.get().x; i++) {
-            noiseTexture.setPixelGrayScale(size2_t(i, j), randomInt(0, 256));
+            if(propTextureType.get()) {
+                // black white
+                noiseTexture.setPixelGrayScale(size2_t(i, j), randomInt(0, 100) < 50 ? 0 : 255); 
+            } else {
+                // greyscale
+            noiseTexture.setPixelGrayScale(size2_t(i, j), randomInt(0, 256)); 
+            }
+            
             // TODO: Randomly sample values for the texture, this produces the same gray value for
             // all pixels
             // A value within the ouput image is set by specifying pixel position and color

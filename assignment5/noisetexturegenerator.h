@@ -60,7 +60,7 @@ public:
     Int64Property propRandomSeed;
     // TODO: Declare additional properties
     // IntProperty properyName;
-    // TemplateOptionProperty<int> propertyName2;
+    TemplateOptionProperty<int> propTextureType;
 
     // Attributes
 private:

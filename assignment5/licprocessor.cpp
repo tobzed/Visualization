@@ -32,7 +32,7 @@ LICProcessor::LICProcessor()
     , licOut_("licOut")
 // TODO: Register additional properties
 
-    , propKrnLength("kernel", "Kernel length", 20, 0, 150)
+    , propKrnLength("kernel", "Half kernel length", 20, 0, 300)
 {
     // Register ports
     addPort(volumeIn_);
@@ -111,70 +111,31 @@ double LICProcessor::singlePointLIC(double x, double y, const RGBAImage & textur
     dvec2 pointInVF(BBoxMin[0] + x / x_ratio, BBoxMin[1] + y / y_ratio);
     
     double stepSize = min(1.0 / x_ratio, 1.0 / y_ratio);
-    int krn_length = propKrnLength.get();
+    int krn_half_len = propKrnLength.get();
     
-    auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, krn_length, vectorField, true, true, 0.0, 1000 );
-    if(backwardRK4.size()-1 < krn_length) {
-       krn_length = backwardRK4.size()-1;
-    }
-    auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, krn_length, vectorField, false, true, 0.0, 1000 );
-    if(forwardRK4.size()-1 < krn_length) {
-        krn_length = forwardRK4.size()-1;
-    }
-
+    auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, krn_half_len, vectorField, true, true, 0.0, 1000 );
+    auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, krn_half_len, vectorField, false, true, 0.0, 1000 );
     double value = 0.0;
-    for(int i = krn_length; i >= 1; i--) {
-        ivec2 pointInTex( (backwardRK4[i][0] - BBoxMin[0]) * x_ratio, (backwardRK4[i][1] - BBoxMin[1]) * y_ratio );
-        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1])) / (double)(krn_length*2 + 1);
-    }
-    
-    for(int i = 0; i <= krn_length; i++) {
-        ivec2 pointInTex( (forwardRK4[i][0] - BBoxMin[0]) * x_ratio, (forwardRK4[i][1] - BBoxMin[1]) * y_ratio );
-        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1])) / (double)(krn_length*2 + 1);
-    }
 
+    for(int i = backwardRK4.size()-1; i >=1; i--) {
+        ivec2 pointInTex( (backwardRK4[i][0] - BBoxMin[0]) * x_ratio, (backwardRK4[i][1] - BBoxMin[1]) * y_ratio );
+        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+    }
+    for(int i = 0; i < forwardRK4.size(); i++) {
+        ivec2 pointInTex( (forwardRK4[i][0] - BBoxMin[0]) * x_ratio, (forwardRK4[i][1] - BBoxMin[1]) * y_ratio );
+        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+    }
+    value /= (double)(backwardRK4.size() + forwardRK4.size() - 1);
+    
     return value;
 }
 
-// void LICProcessor::fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField) {
-//     for (size_t j = 0; j < texDims_.y; j++) {
-//         for (size_t i = 0; i < texDims_.x; i++) {
-//             if(vals[i][j] != 0.0) {
-//                 tryFastLIC((double)i, (double)j, texture, vectorField, vals);
-//             }
-            
-//         }
-//     }
-// }
-
-// void LICProcessor::tryFastLIC(double x, double y, const & RGBAImage texture, const & VectorField2 vectorField, auto & vals) {
-//     dvec2 BBoxMin = vectorField.getBBoxMin();
-//     dvec2 BBoxMax = vectorField.getBBoxMax();
-    
-//     double x_ratio = (double)texDims_.x / (BBoxMax[0] - BBoxMin[0]);
-//     double y_ratio = (double)texDims_.y / (BBoxMax[1] - BBoxMin[1]);
-    
-//     dvec2 pointInVF(BBoxMin[0] + x / x_ratio, BBoxMin[1] + y / y_ratio);
-    
-//     double stepSize = 1.0 / x_ratio;
-    
-//     auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 100000, vectorField, true, true, 0.0, 1000 );
-//     auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 100000, vectorField, false, true, 0.0, 1000 );
-//     auto line = mergeForwardBackward(forwardRK4, backwardRK4);
-
-//     int kernel_length = propKrnLength.get();
-//     if(line.size() < kernel_length) {
-//         kernel_length = line.size();
-//     }
-
-// }
-
-std::vector<dvec2> LICProcessor::mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward) {
+std::vector<dvec2> LICProcessor::mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len) {
     std::vector<dvec2> res;
-    for(int i = backward.size()-1; i >= 0; i--) {
+    for(int i = len; i >= 0; i--) {
         res.push_back(backward[i]);
     }
-    for(int i = 1; i < forward.size(); i++) {
+    for(int i = 1; i <= len; i++) {
         res.push_back(forward[i]);
     }
     return res;
@@ -184,4 +145,11 @@ double LICProcessor::min(const double & d1, const double & d2) {
     return d1 < d2 ? d1 : d2;
 }
 
+bool LICProcessor::onBoundary(double x, double y) {
+    return  x == 0 ||
+            x == (double)texDims_.x - 1.0 ||
+            y == 0 ||
+            y == (double)texDims_.y - 1.0;
+            
+}
 }  // namespace inviwo
