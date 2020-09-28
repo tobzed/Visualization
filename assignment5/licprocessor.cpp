@@ -35,6 +35,7 @@ LICProcessor::LICProcessor()
     , propKrnLength("kernel", "Half kernel length", 20, 0, 300)
     , propContrastEnh("contrast", "Enhance contrast", false)
     , propFastLIC("fastLIC", "Use fast LIC", false)
+    , propColor("color", "Use color", false)
 
 {
     // Register ports
@@ -47,6 +48,7 @@ LICProcessor::LICProcessor()
     addProperty(propKrnLength);
     addProperty(propContrastEnh);
     addProperty(propFastLIC);
+    addProperty(propColor);
 
 }
 
@@ -97,13 +99,16 @@ void LICProcessor::process() {
         contrastEnhancement(licTexture, 128.0, 26.0);
     }
 
-    double val;
-    for (size_t j = 0; j < texDims_.y; j++) {
-        for (size_t i = 0; i < texDims_.x; i++) {
-            val = licTexture[i][j];
-            licImage.setPixel(size2_t(i, j), vec4(val, val, val, 255));
+    if(propColor.get()) {
+        colorTexture(licImage, licTexture, vectorField);
+    } else {
+        for (size_t j = 0; j < texDims_.y; j++) {
+            for (size_t i = 0; i < texDims_.x; i++) {
+                licImage.setPixelGrayScale(size2_t(i, j), licTexture[i][j]);
+            }
         }
     }
+
     LogProcessorInfo("Done LIC");
     licOut_.setData(outImage);
 }
@@ -226,7 +231,7 @@ void LICProcessor::contrastEnhancement(std::vector<std::vector<double>> & licTex
     double mean = 0.0, P = 0.0, dev;
     for(int i = 0; i < texDims_.y; i++) {
         for(int j = 0; j < texDims_.x; j++) {
-            mean += licTexture[j][i] != 255.0 ? licTexture[j][i] : 0 ;
+            mean += licTexture[j][i] != 0.0 ? licTexture[j][i] : 0 ;
             P += licTexture[j][i] * licTexture[j][i];
         }
     }
@@ -241,6 +246,64 @@ void LICProcessor::contrastEnhancement(std::vector<std::vector<double>> & licTex
             licTexture[j][i] = meanDesired + f * (licTexture[j][i] - mean);
         }
     }
+}
+
+void LICProcessor::colorTexture(RGBAImage & licImage, std::vector<std::vector<double>> & licTexture, const VectorField2 & vectorField) {
+    dvec2 BBoxMin = vectorField.getBBoxMin();
+    dvec2 BBoxMax = vectorField.getBBoxMax();
+    double x_ratio =  (BBoxMax[0] - BBoxMin[0]) / (double)texDims_.x;
+    double y_ratio =  (BBoxMax[1] - BBoxMin[1]) / (double)texDims_.y;
+    double min_vel = std::numeric_limits<double>::max();
+    double max_vel = std::numeric_limits<double>::min();
+    std::vector<std::vector<double>> vels(texDims_.x, std::vector<double>(texDims_.y, 0.0));
+
+    for(int y = 0; y < texDims_.y; y++) {
+        for(int x = 0; x < texDims_.x; x++) {
+            vels[x][y] = length(vectorField.interpolate(dvec2(BBoxMin[0] + x * x_ratio, BBoxMin[1] + y * y_ratio)));
+            if(vels[x][y] > max_vel) {
+                max_vel = vels[x][y];
+            } else if(vels[x][y] < min_vel) {
+                min_vel = vels[x][y];
+            }
+        }
+    }
+
+    for(int y = 0; y < texDims_.y; y++) {
+        for(int x = 0; x < texDims_.x; x++) {
+            licImage.setPixel(size2_t(x,y),colorTransform((vels[x][y]-min_vel)/(max_vel-min_vel), licTexture[x][y]));
+        }
+    }
+}
+
+dvec4 LICProcessor::colorTransform(double norm_vel, double grey) {
+    if(norm_vel == 0.0) {
+        return dvec4(grey, grey, grey, 255);
+    }
+        
+    
+    dvec3 blue(0,0,255);
+    dvec3 cyan(0,255,255);
+    dvec3 green(0,255,0);
+    dvec3 yellow(255,255,0);
+    dvec3 red(255,0,0);
+    dvec3 gs(grey,grey,grey);
+    dvec3 res;
+
+    if(norm_vel <= 0.25) {
+        res = blue * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * cyan;   
+    } else if(norm_vel <= 0.5) {
+        norm_vel -= 0.25;
+        res = cyan * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * green;
+    } else if(norm_vel <= 0.75) {
+        norm_vel -= 0.5;
+        res = green * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * yellow;
+    } else {
+        norm_vel -= 0.75;
+        res = yellow * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * red;
+    }
+    res = 0.3*res + 0.7*gs;
+
+    return dvec4(res[0], res[1], res[2], 255);
 }
 
 double LICProcessor::min(const double & d1, const double & d2) {

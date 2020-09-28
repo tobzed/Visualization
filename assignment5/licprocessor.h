@@ -21,6 +21,8 @@
 #include <labutils/scalarvectorfield.h>
 #include <labutils/rgbaimage.h>
 
+#include<limits>
+
 namespace inviwo {
 
 /** \docpage{org.inviwo.LICProcessor, LICProcessor}
@@ -62,6 +64,8 @@ public:
     void fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited);
     void fastLICSinglePoint(auto & vals, double x, double y, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited);
     std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len);
+    void colorTexture(RGBAImage & licImage, std::vector<std::vector<double>> & licTexture, const VectorField2 & vectorField);
+    dvec4 colorTransform(const double norm_vel, const double val);
 protected:
     /// Our main computation function
     virtual void process() override;
@@ -88,6 +92,7 @@ public:
     IntProperty propKrnLength;
     BoolProperty propContrastEnh;
     BoolProperty propFastLIC;
+    BoolProperty propColor;
 
     // Attributes
 private:
