@@ -33,6 +33,9 @@ LICProcessor::LICProcessor()
 // TODO: Register additional properties
 
     , propKrnLength("kernel", "Half kernel length", 20, 0, 300)
+    , propContrastEnh("contrast", "Enhance contrast", false)
+    , propFastLIC("fastLIC", "Use fast LIC", false)
+
 {
     // Register ports
     addPort(volumeIn_);
@@ -42,6 +45,9 @@ LICProcessor::LICProcessor()
     // Register properties
     // TODO: Register additional properties
     addProperty(propKrnLength);
+    addProperty(propContrastEnh);
+    addProperty(propFastLIC);
+
 }
 
 void LICProcessor::process() {
@@ -62,9 +68,9 @@ void LICProcessor::process() {
     const RGBAImage texture = RGBAImage::createFromImage(tex);
     texDims_ = tex->getDimensions();
 
-    double value = texture.readPixelGrayScale(size2_t(0, 0));
+    // double value = texture.readPixelGrayScale(size2_t(0, 0));
 
-    LogProcessorInfo("DIMS texture:" << texDims_ << "   DIMS vector field: " << vectorFieldDims_);
+    // LogProcessorInfo("DIMS texture:" << texDims_ << "   DIMS vector field: " << vectorFieldDims_);
 
     // Prepare the output, it has the same dimensions as the texture and rgba values in [0,255]
     auto outImage = std::make_shared<Image>(texDims_, DataVec4UInt8::get());
@@ -80,8 +86,16 @@ void LICProcessor::process() {
     
     // TODO: Implement LIC and FastLIC
     // This code instead sets all pixels to the same gray value
+    if(propFastLIC.get()) {
+        fastLIC(licTexture, texture, vectorField, visited);
+    } else {
+        LIC(licTexture, texture, vectorField);
+    }
+    
 
-    LIC(licTexture, texture, vectorField);
+    if(propContrastEnh.get()) {
+        contrastEnhancement(licTexture, 128.0, 26.0);
+    }
 
     double val;
     for (size_t j = 0; j < texDims_.y; j++) {
@@ -90,6 +104,7 @@ void LICProcessor::process() {
             licImage.setPixel(size2_t(i, j), vec4(val, val, val, 255));
         }
     }
+    LogProcessorInfo("Done LIC");
     licOut_.setData(outImage);
 }
 
@@ -118,27 +133,114 @@ double LICProcessor::singlePointLIC(double x, double y, const RGBAImage & textur
     double value = 0.0;
 
     for(int i = backwardRK4.size()-1; i >=1; i--) {
-        ivec2 pointInTex( (backwardRK4[i][0] - BBoxMin[0]) * x_ratio, (backwardRK4[i][1] - BBoxMin[1]) * y_ratio );
-        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+        dvec2 pointInTex( (backwardRK4[i][0] - BBoxMin[0]) * x_ratio, (backwardRK4[i][1] - BBoxMin[1]) * y_ratio );
+        value += texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
     }
     for(int i = 0; i < forwardRK4.size(); i++) {
-        ivec2 pointInTex( (forwardRK4[i][0] - BBoxMin[0]) * x_ratio, (forwardRK4[i][1] - BBoxMin[1]) * y_ratio );
-        value += texture.readPixelGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+        dvec2 pointInTex( (forwardRK4[i][0] - BBoxMin[0]) * x_ratio, (forwardRK4[i][1] - BBoxMin[1]) * y_ratio );
+        value += texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
     }
     value /= (double)(backwardRK4.size() + forwardRK4.size() - 1);
     
     return value;
 }
 
+void LICProcessor::fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited) {    
+    // Loop through all points which haven't been visited until all points have been visited
+    for (int j = 0; j < texDims_.y; j++) {
+        for (int i = 0; i < texDims_.x; i++) {
+            if(visited[i][j] == 0) {
+                // This point hasn't been visited, do LIC
+                fastLICSinglePoint(vals, i, j, texture, vectorField, visited);
+            }
+        }
+    }
+}
+
+void LICProcessor::fastLICSinglePoint(auto & vals, double x, double y, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited) {
+    // Integrate a line from this point
+    dvec2 BBoxMin = vectorField.getBBoxMin();
+    dvec2 BBoxMax = vectorField.getBBoxMax();
+    double x_ratio = (double)texDims_.x / (BBoxMax[0] - BBoxMin[0]);
+    double y_ratio = (double)texDims_.y / (BBoxMax[1] - BBoxMin[1]);
+    double stepSize = min(1.0 / x_ratio, 1.0 / y_ratio);
+    dvec2 pointInVF(BBoxMin[0] + x / x_ratio, BBoxMin[1] + y / y_ratio);
+    
+    auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, true, true, 0.0, 1000);
+    auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, false, true, 0.0, 1000);
+
+    // Merge the forward part and the backward part
+    auto fullLine = mergeForwardBackward(forwardRK4, backwardRK4, 1000);
+
+    // Loop through every points in the line and compute the value
+    double currentValue = 0;
+    int numberPointsConsidered = 0;
+    for(int i = 0; i < fullLine.size() && i < propKrnLength.get()+1; i++) {
+        dvec2 pointInTex( (fullLine[i][0] - BBoxMin[0]) * x_ratio, (fullLine[i][1] - BBoxMin[1]) * y_ratio );
+        currentValue += texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+        numberPointsConsidered++;
+    }    
+
+    for(int iPoint = 0; iPoint < fullLine.size(); iPoint++) {
+        // We add the value of the current point
+        dvec2 pointInTex( (fullLine[iPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[iPoint][1] - BBoxMin[1]) * y_ratio );
+        vals[pointInTex[0]][pointInTex[1]] = currentValue / numberPointsConsidered;
+        visited[pointInTex[0]][pointInTex[1]] = 1;
+        
+        if(numberPointsConsidered == 2 * propKrnLength.get() + 1) {
+            // We remove an old point
+            int indexOldPoint = iPoint - propKrnLength.get();
+            dvec2 oldPointInTex( (fullLine[indexOldPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[indexOldPoint][1] - BBoxMin[1]) * y_ratio );
+            currentValue -=  texture.sampleGrayScale(size2_t(oldPointInTex[0], oldPointInTex[1]));
+            numberPointsConsidered--;
+        }
+
+        // We add a new point
+        int indexNewPoint = iPoint + propKrnLength.get();
+        if(indexNewPoint < fullLine.size()) {
+            dvec2 newPointInTex( (fullLine[indexNewPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[indexNewPoint][1] - BBoxMin[1]) * y_ratio );
+            currentValue += texture.sampleGrayScale(size2_t(newPointInTex[0], newPointInTex[1]));
+            numberPointsConsidered++;
+        }
+    }
+}
+
 std::vector<dvec2> LICProcessor::mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len) {
     std::vector<dvec2> res;
+    if(backward.size() < len) {
+        len = backward.size() - 1;
+    }
     for(int i = len; i >= 0; i--) {
         res.push_back(backward[i]);
+    }
+    if(forward.size() < len) {
+        len = forward.size() - 1;
     }
     for(int i = 1; i <= len; i++) {
         res.push_back(forward[i]);
     }
     return res;
+}
+
+void LICProcessor::contrastEnhancement(std::vector<std::vector<double>> & licTexture, double meanDesired, double devDesired) {
+    double mean = 0.0, P = 0.0, dev;
+    for(int i = 0; i < texDims_.y; i++) {
+        for(int j = 0; j < texDims_.x; j++) {
+            mean += licTexture[j][i] != 255.0 ? licTexture[j][i] : 0 ;
+            P += licTexture[j][i] * licTexture[j][i];
+        }
+    }
+    mean /= (double)(texDims_.x * texDims_.y);
+    dev = sqrt( (P - (double)(texDims_.x * texDims_.y) * mean * mean) / (double)(texDims_.x * texDims_.y - 1) );
+
+    LogProcessorInfo("Mean: " << mean);
+    LogProcessorInfo("Deviation: " << dev);
+    double f = devDesired / dev;
+    for(int i = 0; i < texDims_.y; i++) {
+        for(int j = 0; j < texDims_.x; j++) {
+            licTexture[j][i] = meanDesired + f * (licTexture[j][i] - mean);
+        }
+    }
 }
 
 double LICProcessor::min(const double & d1, const double & d2) {

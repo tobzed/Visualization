@@ -58,10 +58,9 @@ public:
     double min(const double & d1, const double & d2);
     double singlePointLIC(double x, double y, const RGBAImage & texture, const VectorField2 & vectorField);
     void LIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
-
-    //void fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField);
-    //void tryFastLIC(double x, double y, const & RGBAImage texture, const & VectorField2 vectorField, auto & vals);
-
+    void contrastEnhancement(std::vector<std::vector<double>> & licTexture, double meanDesired, double devDesired);
+    void fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited);
+    void fastLICSinglePoint(auto & vals, double x, double y, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited);
     std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len);
 protected:
     /// Our main computation function
@@ -87,6 +86,8 @@ public:
     // IntProperty prop1;
     // BoolProperty prop2;
     IntProperty propKrnLength;
+    BoolProperty propContrastEnh;
+    BoolProperty propFastLIC;
 
     // Attributes
 private:
