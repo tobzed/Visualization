@@ -162,6 +162,54 @@ void LICProcessor::fastLIC(auto & vals, const RGBAImage & texture, const VectorF
     }
 }
 
+// void LICProcessor::fastLICSinglePoint(auto & vals, double x, double y, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited) {
+//     // Integrate a line from this point
+//     dvec2 BBoxMin = vectorField.getBBoxMin();
+//     dvec2 BBoxMax = vectorField.getBBoxMax();
+//     double x_ratio = (double)texDims_.x / (BBoxMax[0] - BBoxMin[0]);
+//     double y_ratio = (double)texDims_.y / (BBoxMax[1] - BBoxMin[1]);
+//     double stepSize = min(1.0 / x_ratio, 1.0 / y_ratio);
+//     dvec2 pointInVF(BBoxMin[0] + x / x_ratio, BBoxMin[1] + y / y_ratio);
+    
+//     auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, true, true, 0.0, 1000);
+//     auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, false, true, 0.0, 1000);
+
+//     // Merge the forward part and the backward part
+//     auto fullLine = mergeForwardBackward(forwardRK4, backwardRK4, 1000);
+
+//     // Loop through every points in the line and compute the value
+//     double currentValue = 0;
+//     int numberPointsConsidered = 0;
+//     for(int i = 0; i < fullLine.size() && i < propKrnLength.get()+1; i++) {
+//         dvec2 pointInTex( (fullLine[i][0] - BBoxMin[0]) * x_ratio, (fullLine[i][1] - BBoxMin[1]) * y_ratio );
+//         currentValue += texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+//         numberPointsConsidered++;
+//     }    
+
+//     for(int iPoint = 0; iPoint < fullLine.size(); iPoint++) {
+//         // We add the value of the current point
+//         dvec2 pointInTex( (fullLine[iPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[iPoint][1] - BBoxMin[1]) * y_ratio );
+//         vals[pointInTex[0]][pointInTex[1]] = currentValue / numberPointsConsidered;
+//         visited[pointInTex[0]][pointInTex[1]] = 1;
+        
+//         if(numberPointsConsidered == 2 * propKrnLength.get() + 1) {
+//             // We remove an old point
+//             int indexOldPoint = iPoint - propKrnLength.get();
+//             dvec2 oldPointInTex( (fullLine[indexOldPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[indexOldPoint][1] - BBoxMin[1]) * y_ratio );
+//             currentValue -=  texture.sampleGrayScale(size2_t(oldPointInTex[0], oldPointInTex[1]));
+//             numberPointsConsidered--;
+//         }
+
+//         // We add a new point
+//         int indexNewPoint = iPoint + propKrnLength.get();
+//         if(indexNewPoint < fullLine.size()) {
+//             dvec2 newPointInTex( (fullLine[indexNewPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[indexNewPoint][1] - BBoxMin[1]) * y_ratio );
+//             currentValue += texture.sampleGrayScale(size2_t(newPointInTex[0], newPointInTex[1]));
+//             numberPointsConsidered++;
+//         }
+//     }
+// }
+
 void LICProcessor::fastLICSinglePoint(auto & vals, double x, double y, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited) {
     // Integrate a line from this point
     dvec2 BBoxMin = vectorField.getBBoxMin();
@@ -171,57 +219,69 @@ void LICProcessor::fastLICSinglePoint(auto & vals, double x, double y, const RGB
     double stepSize = min(1.0 / x_ratio, 1.0 / y_ratio);
     dvec2 pointInVF(BBoxMin[0] + x / x_ratio, BBoxMin[1] + y / y_ratio);
     
-    auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, true, true, 0.0, 1000);
-    auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, false, true, 0.0, 1000);
+    auto backwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, true, true, 0.00001, 1000);
+    auto forwardRK4 = Integrator::integrateLine(pointInVF, stepSize, 1000, vectorField, false, true, 0.00001, 1000);
 
     // Merge the forward part and the backward part
-    auto fullLine = mergeForwardBackward(forwardRK4, backwardRK4, 1000);
+    auto fullLine = mergeForwardBackward(forwardRK4, backwardRK4);
 
-    // Loop through every points in the line and compute the value
+    // use dynamic programming to store already computed values 
     double currentValue = 0;
-    int numberPointsConsidered = 0;
+    int back = 0;
+    int front = 0;
+    int kernel_len = 2 * propKrnLength.get() + 1;
+    kernel_len = kernel_len < fullLine.size() ? kernel_len : fullLine.size();
+    int preComputed[kernel_len];
+    dvec2 prePos[kernel_len];
+
+    // calculate half the kernel
     for(int i = 0; i < fullLine.size() && i < propKrnLength.get()+1; i++) {
         dvec2 pointInTex( (fullLine[i][0] - BBoxMin[0]) * x_ratio, (fullLine[i][1] - BBoxMin[1]) * y_ratio );
-        currentValue += texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
-        numberPointsConsidered++;
+        preComputed[front] = texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+        prePos[front] = pointInTex;
+        currentValue += preComputed[front++];
     }    
 
-    for(int iPoint = 0; iPoint < fullLine.size(); iPoint++) {
-        // We add the value of the current point
-        dvec2 pointInTex( (fullLine[iPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[iPoint][1] - BBoxMin[1]) * y_ratio );
-        vals[pointInTex[0]][pointInTex[1]] = currentValue / numberPointsConsidered;
-        visited[pointInTex[0]][pointInTex[1]] = 1;
-        
-        if(numberPointsConsidered == 2 * propKrnLength.get() + 1) {
-            // We remove an old point
-            int indexOldPoint = iPoint - propKrnLength.get();
-            dvec2 oldPointInTex( (fullLine[indexOldPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[indexOldPoint][1] - BBoxMin[1]) * y_ratio );
-            currentValue -=  texture.sampleGrayScale(size2_t(oldPointInTex[0], oldPointInTex[1]));
-            numberPointsConsidered--;
-        }
+    // for each point in the integrated line, set corresponding value in final texture
+    for(int p = 0; p < fullLine.size(); p++) {   
 
-        // We add a new point
-        int indexNewPoint = iPoint + propKrnLength.get();
-        if(indexNewPoint < fullLine.size()) {
-            dvec2 newPointInTex( (fullLine[indexNewPoint][0] - BBoxMin[0]) * x_ratio, (fullLine[indexNewPoint][1] - BBoxMin[1]) * y_ratio );
-            currentValue += texture.sampleGrayScale(size2_t(newPointInTex[0], newPointInTex[1]));
-            numberPointsConsidered++;
+        // get the current point and set it to visited     
+        dvec2 currp = prePos[p % kernel_len];
+        visited[currp[0]][currp[1]] = 1;
+        
+        // update the kernel for next point in list
+        // 3 possible cases
+        if(front < kernel_len) {
+            // case 1: the kernel can still grow
+            vals[currp[0]][currp[1]] = currentValue / (double)(front);
+            dvec2 pointInTex( (fullLine[front][0] - BBoxMin[0]) * x_ratio, (fullLine[front][1] - BBoxMin[1]) * y_ratio );
+            preComputed[front] = texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+            prePos[front] = pointInTex;
+            currentValue += preComputed[front++];    
+        } else if((front-back) == kernel_len && front < fullLine.size()) {
+            // case 2: the kernel size is at maximum
+            vals[currp[0]][currp[1]] = currentValue / (double)(kernel_len);
+            currentValue -= preComputed[back % kernel_len];
+            dvec2 pointInTex( (fullLine[front][0] - BBoxMin[0]) * x_ratio, (fullLine[front][1] - BBoxMin[1]) * y_ratio );
+            preComputed[back % kernel_len] = texture.sampleGrayScale(size2_t(pointInTex[0], pointInTex[1]));
+            prePos[back % kernel_len] = pointInTex;
+            currentValue += preComputed[back % kernel_len];   
+            front++, back++; 
+        } else {
+            // case 3: reaching end of list, the kernel must get smaller
+            vals[currp[0]][currp[1]] = currentValue / (double)(front-back);
+            currentValue -= preComputed[back % kernel_len];
+            back++;
         }
     }
 }
 
-std::vector<dvec2> LICProcessor::mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len) {
+std::vector<dvec2> LICProcessor::mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward) {
     std::vector<dvec2> res;
-    if(backward.size() < len) {
-        len = backward.size() - 1;
-    }
-    for(int i = len; i >= 0; i--) {
+    for(int i = backward.size()-1; i >= 0; i--) {
         res.push_back(backward[i]);
     }
-    if(forward.size() < len) {
-        len = forward.size() - 1;
-    }
-    for(int i = 1; i <= len; i++) {
+    for(int i = 1; i < forward.size(); i++) {
         res.push_back(forward[i]);
     }
     return res;
@@ -279,29 +339,32 @@ dvec4 LICProcessor::colorTransform(double norm_vel, double grey) {
     if(norm_vel == 0.0) {
         return dvec4(grey, grey, grey, 255);
     }
-        
     
-    dvec3 blue(0,0,255);
-    dvec3 cyan(0,255,255);
-    dvec3 green(0,255,0);
-    dvec3 yellow(255,255,0);
-    dvec3 red(255,0,0);
     dvec3 gs(grey,grey,grey);
     dvec3 res;
 
     if(norm_vel <= 0.25) {
+        dvec3 blue(0,0,255);
+        dvec3 cyan(0,255,255);
         res = blue * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * cyan;   
     } else if(norm_vel <= 0.5) {
         norm_vel -= 0.25;
+        dvec3 cyan(0,255,255);
+        dvec3 green(0,255,0);
         res = cyan * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * green;
     } else if(norm_vel <= 0.75) {
         norm_vel -= 0.5;
+        dvec3 green(0,255,0);
+        dvec3 yellow(255,255,0);
         res = green * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * yellow;
     } else {
         norm_vel -= 0.75;
+        dvec3 yellow(255,255,0);
+        dvec3 red(255,0,0);
         res = yellow * (0.25 - norm_vel)/0.25 + norm_vel/0.25 * red;
     }
-    res = 0.3*res + 0.7*gs;
+
+    res = 0.7*gs + 0.3*res;
 
     return dvec4(res[0], res[1], res[2], 255);
 }

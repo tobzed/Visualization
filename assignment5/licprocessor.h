@@ -63,7 +63,7 @@ public:
     void contrastEnhancement(std::vector<std::vector<double>> & licTexture, double meanDesired, double devDesired);
     void fastLIC(auto & vals, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited);
     void fastLICSinglePoint(auto & vals, double x, double y, const RGBAImage & texture, const VectorField2 & vectorField, auto & visited);
-    std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward, int len);
+    std::vector<dvec2> mergeForwardBackward(const std::vector<dvec2> & forward, const std::vector<dvec2> & backward);
     void colorTexture(RGBAImage & licImage, std::vector<std::vector<double>> & licTexture, const VectorField2 & vectorField);
     dvec4 colorTransform(const double norm_vel, const double val);
 protected:
