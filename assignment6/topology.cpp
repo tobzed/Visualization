@@ -136,13 +136,14 @@ void Topology::process() {
 
     drawSeparatrices(saddle, vectorField, mesh, vertices);
     
-    // std::vector<dvec2> switches;
-    // findSwitchPoints(switches, vectorField, dims);
+    std::vector<dvec2> switches;
+    findSwitchPoints(switches, vectorField, dims);
 
-    // for(int i = 0; i < switches.size(); i++) {
-    //     indexBufferPoints->add(static_cast<std::uint32_t>(vertices.size()));
-    //     vertices.push_back({vec3(switches[i][0], switches[i][1], 0), vec3(0, 0, 1), vec3(switches[i][0], switches[i][1], 0), vec4(0.5, 0.5, 0.5, 1)});
-    //}
+    for(int i = 0; i < switches.size(); i++) {
+        indexBufferPoints->add(static_cast<std::uint32_t>(vertices.size()));
+        vertices.push_back({vec3(switches[i][0], switches[i][1], 0), vec3(0, 0, 1), vec3(switches[i][0], switches[i][1], 0), vec4(0.5, 0.5, 0.5, 1)});
+    }
+    drawSeparatrix(switches, vectorField, mesh, vertices);
     
     // Other helpful functions
     // dvec2 pos = vectorField.getPositionAtVertex(size2_t(i, j));
@@ -158,6 +159,22 @@ void Topology::process() {
 
     mesh->addVertices(vertices);
     outMesh.setData(mesh);
+}
+
+void Topology::drawSeparatrix(const std::vector<dvec2> & switches, const VectorField2 & vectorField, auto & mesh, std::vector<BasicMesh::Vertex> & vertices) { 
+    vec4 grey(0.5,0.5,0.5,1);
+    for(dvec2 switchPt : switches) {
+        auto forward = Integrator::integrateLine(switchPt, 0.02, 1000, vectorField, false, false, ZERO, 1000);
+        auto indexBufferSeparatrix1 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
+        for(auto p : forward) {
+            Integrator::drawNextPointInPolyline(p, grey, indexBufferSeparatrix1.get(), vertices);
+        }
+        auto backward = Integrator::integrateLine(switchPt, 0.02, 1000, vectorField, true, false, ZERO, 1000);
+        auto indexBufferSeparatrix2 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
+        for(auto p : backward) {
+            Integrator::drawNextPointInPolyline(p, grey, indexBufferSeparatrix2.get(), vertices);
+        }
+    }
 }
 
 void Topology::drawSeparatrices(const std::vector<dvec2> & saddlePoints, const VectorField2 & vectorField, auto & mesh, std::vector<BasicMesh::Vertex> & vertices) {
@@ -297,43 +314,45 @@ std::vector<dvec2> Topology::findCriticalPoints(const VectorField2 & vectorField
 }
 
 void Topology::findSwitchPoints(std::vector<dvec2> & switches, const VectorField2 & vectorField, const size2_t & dims) {
-    dvec2 leftPt = vectorField.getPositionAtVertex(size2_t(0,0));
+    const dvec2& BBoxMin = vectorField.getBBoxMin();
+    const dvec2& BBoxMax = vectorField.getBBoxMax();    
+    
+    dvec2 leftPt(BBoxMin);
     dvec2 rightPt = leftPt + dvec2(ZERO,0);
-    while(rightPt[0] < vectorField.getPositionAtVertex(size2_t(dims[0],0))[0]) {
-        if(!sameDimSign(vectorField.interpolate(leftPt), vectorField.interpolate(rightPt), 0)) {
+    while(rightPt[0] < BBoxMax[0]) {
+        if(!sameDimSign(vectorField.interpolate(leftPt), vectorField.interpolate(rightPt), 1)) {
             switches.push_back( (leftPt + rightPt)/2.0 );
+            
         }
         leftPt = rightPt;
-        rightPt = leftPt + dvec2(ZERO,0);
+        rightPt += dvec2(ZERO,0);
     }
-    
-    leftPt = vectorField.getPositionAtVertex(size2_t(0,dims[1]));
+    leftPt = dvec2(BBoxMin[0], BBoxMax[1]);
     rightPt = leftPt + dvec2(ZERO,0);
-    while(rightPt[0] < vectorField.getPositionAtVertex(size2_t(dims[0],0))[0]) {
-        if(!sameDimSign(vectorField.interpolate(leftPt), vectorField.interpolate(rightPt), 0)) {
+    while(rightPt[0] < BBoxMax[0]) {
+        if(!sameDimSign(vectorField.interpolate(leftPt), vectorField.interpolate(rightPt), 1)) {
             switches.push_back( (leftPt + rightPt)/2.0 );
         }
         leftPt = rightPt;
-        rightPt = leftPt + dvec2(ZERO,0);
+        rightPt += dvec2(0.02,0);
     }
-    dvec2 bottomPt = vectorField.getPositionAtVertex(size2_t(0,0));
+    dvec2 bottomPt(BBoxMin);
     dvec2 topPt = bottomPt + dvec2(0,ZERO);
-    while(topPt[1] < vectorField.getPositionAtVertex(size2_t(0,dims[1]))[1]) {
-        if(!sameDimSign(vectorField.interpolate(bottomPt), vectorField.interpolate(topPt), 1)) {
+    while(topPt[1] < BBoxMax[1]) {
+        if(!sameDimSign(vectorField.interpolate(bottomPt), vectorField.interpolate(topPt), 0)) {
             switches.push_back( (bottomPt + topPt)/2.0 );
         }
         bottomPt = topPt;
-        topPt = bottomPt + dvec2(ZERO,0);
+        topPt += dvec2(0,ZERO);
     }
-    
-    bottomPt = vectorField.getPositionAtVertex(size2_t(dims[0],0));
+    bottomPt = dvec2(BBoxMax[0], BBoxMin[1]);
     topPt = bottomPt + dvec2(0,ZERO);
-    while(topPt[1] < vectorField.getPositionAtVertex(size2_t(0,dims[1]))[1]) {
-        if(!sameDimSign(vectorField.interpolate(bottomPt), vectorField.interpolate(topPt), 1)) {
+    while(topPt[1] < BBoxMax[1]) {
+        if(!sameDimSign(vectorField.interpolate(bottomPt), vectorField.interpolate(topPt), 0)) {
             switches.push_back( (bottomPt + topPt)/2.0 );
         }
         bottomPt = topPt;
-        topPt = bottomPt + dvec2(ZERO,0);
+        topPt += dvec2(0,ZERO);
     }
 }
 

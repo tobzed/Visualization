@@ -72,7 +72,7 @@ public:
     void findSwitchPoints(std::vector<dvec2> & switches, const VectorField2 & vectorField, const size2_t & dims);
     bool sameDimSign(const dvec2 & v1, const dvec2 & v2, const int dim);
     void drawSeparatrices(const std::vector<dvec2> & saddlePoints, const VectorField2 & vectorField, auto & mesh, std::vector<BasicMesh::Vertex> & vertices);
-    
+    void drawSeparatrix(const std::vector<dvec2> & switches, const VectorField2 & vectorField, auto & mesh, std::vector<BasicMesh::Vertex> & vertices);
 protected:
     // Our main computation function
     virtual void process() override;
