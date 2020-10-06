@@ -134,6 +134,8 @@ void Topology::process() {
         vertices.push_back({vec3(repellFoc[i][0], repellFoc[i][1], 0), vec3(0, 0, 1), vec3(repellFoc[i][0], repellFoc[i][1], 0), ColorsCP[4]});
     }
 
+    drawSeparatrices(saddle, vectorField, mesh, vertices);
+    
     // std::vector<dvec2> switches;
     // findSwitchPoints(switches, vectorField, dims);
 
@@ -156,6 +158,38 @@ void Topology::process() {
 
     mesh->addVertices(vertices);
     outMesh.setData(mesh);
+}
+
+void Topology::drawSeparatrices(const std::vector<dvec2> & saddlePoints, const VectorField2 & vectorField, auto & mesh, std::vector<BasicMesh::Vertex> & vertices) {
+    vec4 white(1,1,1,1);
+    for(dvec2 saddlePt : saddlePoints) {
+        auto eigenAn = inviwo::util::eigenAnalysis(vectorField.derive(saddlePt));
+        for(int i = 0; i < 2; i++) {
+            if(eigenAn.eigenvaluesRe[i] > 0) {
+                auto forward = Integrator::integrateLine(dvec2(saddlePt + 0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, false, false, ZERO, 1000);
+                auto indexBufferSeparatrices1 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
+                for(auto p : forward) {
+                    Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices1.get(), vertices);
+                }
+                forward = Integrator::integrateLine(dvec2(saddlePt  -0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, false, false, ZERO, 1000);
+                auto indexBufferSeparatrices2 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
+                for(auto p : forward) {
+                    Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices2.get(), vertices);
+                }
+            } else {
+                auto backward = Integrator::integrateLine(dvec2(saddlePt + 0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, true, false, ZERO, 1000);
+                auto indexBufferSeparatrices3 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
+                for(auto p : backward) {
+                    Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices3.get(), vertices);
+                }
+                backward = Integrator::integrateLine(dvec2(saddlePt  -0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, true, false, ZERO, 1000);
+                auto indexBufferSeparatrices4 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
+                for(auto p : backward) {
+                    Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices4.get(), vertices);
+                }
+            }
+        }
+    }
 }
 
 void Topology::classifyCriticalPoints(const std::vector<dvec2> & critPoints, std::vector<dvec2> & saddle, std::vector<dvec2> & attraNode, std::vector<dvec2> & repellNode, std::vector<dvec2> & attraFoc, std::vector<dvec2> & repellFoc, std::vector<dvec2> & center, const VectorField2 & vectorField) {
