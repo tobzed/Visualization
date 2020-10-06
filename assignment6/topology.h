@@ -68,6 +68,9 @@ public:
     bool possibleCritPoint(const dvec2 & bottomLeft, const dvec2 & bottomRight, const dvec2 & topLeft, const dvec2 & topRight, const VectorField2 & vectorField);
     void findCritPoint(dvec2 bottomLeft, dvec2 bottomRight, dvec2 topLeft, dvec2 topRight, std::vector<dvec2> & pts, const VectorField2 & vectorField);
     void classifyCriticalPoints(const std::vector<dvec2> & critPoints, std::vector<dvec2> & saddle, std::vector<dvec2> & attraNode, std::vector<dvec2> & repellNode, std::vector<dvec2> & attraFoc, std::vector<dvec2> & repellFoc, std::vector<dvec2> & center, const VectorField2 & vectorField);
+    bool outsideBoundary(const dvec2 & pt, const VectorField2 & vectorField);
+    void findSwitchPoints(std::vector<dvec2> & switches, const VectorField2 & vectorField, const size2_t & dims);
+    bool sameDimSign(const dvec2 & v1, const dvec2 & v2, const int dim);
 protected:
     // Our main computation function
     virtual void process() override;

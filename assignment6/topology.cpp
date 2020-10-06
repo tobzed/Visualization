@@ -133,6 +133,15 @@ void Topology::process() {
         indexBufferPoints->add(static_cast<std::uint32_t>(vertices.size()));
         vertices.push_back({vec3(repellFoc[i][0], repellFoc[i][1], 0), vec3(0, 0, 1), vec3(repellFoc[i][0], repellFoc[i][1], 0), ColorsCP[4]});
     }
+
+    // std::vector<dvec2> switches;
+    // findSwitchPoints(switches, vectorField, dims);
+
+    // for(int i = 0; i < switches.size(); i++) {
+    //     indexBufferPoints->add(static_cast<std::uint32_t>(vertices.size()));
+    //     vertices.push_back({vec3(switches[i][0], switches[i][1], 0), vec3(0, 0, 1), vec3(switches[i][0], switches[i][1], 0), vec4(0.5, 0.5, 0.5, 1)});
+    //}
+    
     // Other helpful functions
     // dvec2 pos = vectorField.getPositionAtVertex(size2_t(i, j));
     // Computing the jacobian at a position
@@ -253,6 +262,56 @@ std::vector<dvec2> Topology::findCriticalPoints(const VectorField2 & vectorField
     return crit_pts;
 }
 
+void Topology::findSwitchPoints(std::vector<dvec2> & switches, const VectorField2 & vectorField, const size2_t & dims) {
+    dvec2 leftPt = vectorField.getPositionAtVertex(size2_t(0,0));
+    dvec2 rightPt = leftPt + dvec2(ZERO,0);
+    while(rightPt[0] < vectorField.getPositionAtVertex(size2_t(dims[0],0))[0]) {
+        if(!sameDimSign(vectorField.interpolate(leftPt), vectorField.interpolate(rightPt), 0)) {
+            switches.push_back( (leftPt + rightPt)/2.0 );
+        }
+        leftPt = rightPt;
+        rightPt = leftPt + dvec2(ZERO,0);
+    }
+    
+    leftPt = vectorField.getPositionAtVertex(size2_t(0,dims[1]));
+    rightPt = leftPt + dvec2(ZERO,0);
+    while(rightPt[0] < vectorField.getPositionAtVertex(size2_t(dims[0],0))[0]) {
+        if(!sameDimSign(vectorField.interpolate(leftPt), vectorField.interpolate(rightPt), 0)) {
+            switches.push_back( (leftPt + rightPt)/2.0 );
+        }
+        leftPt = rightPt;
+        rightPt = leftPt + dvec2(ZERO,0);
+    }
+    dvec2 bottomPt = vectorField.getPositionAtVertex(size2_t(0,0));
+    dvec2 topPt = bottomPt + dvec2(0,ZERO);
+    while(topPt[1] < vectorField.getPositionAtVertex(size2_t(0,dims[1]))[1]) {
+        if(!sameDimSign(vectorField.interpolate(bottomPt), vectorField.interpolate(topPt), 1)) {
+            switches.push_back( (bottomPt + topPt)/2.0 );
+        }
+        bottomPt = topPt;
+        topPt = bottomPt + dvec2(ZERO,0);
+    }
+    
+    bottomPt = vectorField.getPositionAtVertex(size2_t(dims[0],0));
+    topPt = bottomPt + dvec2(0,ZERO);
+    while(topPt[1] < vectorField.getPositionAtVertex(size2_t(0,dims[1]))[1]) {
+        if(!sameDimSign(vectorField.interpolate(bottomPt), vectorField.interpolate(topPt), 1)) {
+            switches.push_back( (bottomPt + topPt)/2.0 );
+        }
+        bottomPt = topPt;
+        topPt = bottomPt + dvec2(ZERO,0);
+    }
+}
+
+bool Topology::outsideBoundary(const dvec2 & pt, const VectorField2 & vectorField) {
+    const dvec2& BBoxMin = vectorField.getBBoxMin();
+    const dvec2& BBoxMax = vectorField.getBBoxMax();
+    return (pt[0] < BBoxMin[0] || 
+            pt[1] < BBoxMin[1] ||
+            pt[0] > BBoxMax[0] ||
+            pt[1] > BBoxMax[1]);
+}
+
 void Topology::drawLineSegment(const dvec2& v1, const dvec2& v2, const vec4& color,
                                IndexBufferRAM* indexBuffer,
                                std::vector<BasicMesh::Vertex>& vertices) {
@@ -261,5 +320,10 @@ void Topology::drawLineSegment(const dvec2& v1, const dvec2& v2, const vec4& col
     indexBuffer->add(static_cast<std::uint32_t>(vertices.size()));
     vertices.push_back({vec3(v2[0], v2[1], 0), vec3(0, 0, 1), vec3(v2[0], v2[1], 0), color});
 }
+
+bool Topology::sameDimSign(const dvec2 & v1, const dvec2 & v2, const int dim) {
+    if(dim < 0 || dim > 1) return false;
+    return ( (v1[dim] > 0 && v2[dim] > 0) || (v1[dim] < 0 && v2[dim] < 0) );
+} 
 
 }  // namespace inviwo
