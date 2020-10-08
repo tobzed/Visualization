@@ -40,6 +40,10 @@ Topology::Topology()
     , inData("inData")
     , outMesh("meshOut")
     , meshBBoxOut("meshBBoxOut")
+    , propClassifyBoundary("classify", "Classify boundary", 0.000001, 0.000000000001, 0.1)
+    , propThreshold("crit_thres", "Zero velocity", 0.001, 0.000000001, 0.1)
+    , propSearchDepth("depth", "Search depth", 5, 0, 100)
+
 // TODO: Initialize additional properties
 // propertyName("propertyIdentifier", "Display Name of the Propery",
 // default value (optional), minimum value (optional), maximum value (optional), increment
@@ -49,6 +53,9 @@ Topology::Topology()
     addPort(outMesh);
     addPort(inData);
     addPort(meshBBoxOut);
+    addProperty(propClassifyBoundary);
+    addProperty(propThreshold);
+    addProperty(propSearchDepth);
 
     // TODO: Register additional properties
     // addProperty(propertyName);
@@ -183,23 +190,23 @@ void Topology::drawSeparatrices(const std::vector<dvec2> & saddlePoints, const V
         auto eigenAn = inviwo::util::eigenAnalysis(vectorField.derive(saddlePt));
         for(int i = 0; i < 2; i++) {
             if(eigenAn.eigenvaluesRe[i] > 0) {
-                auto forward = Integrator::integrateLine(dvec2(saddlePt + 0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, false, false, ZERO, 1000);
+                auto forward = Integrator::integrateLine(dvec2(saddlePt + 0.01*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, false, false, ZERO, 1000);
                 auto indexBufferSeparatrices1 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
                 for(auto p : forward) {
                     Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices1.get(), vertices);
                 }
-                forward = Integrator::integrateLine(dvec2(saddlePt  -0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, false, false, ZERO, 1000);
+                forward = Integrator::integrateLine(dvec2(saddlePt  -0.01*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, false, false, ZERO, 1000);
                 auto indexBufferSeparatrices2 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
                 for(auto p : forward) {
                     Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices2.get(), vertices);
                 }
             } else {
-                auto backward = Integrator::integrateLine(dvec2(saddlePt + 0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, true, false, ZERO, 1000);
+                auto backward = Integrator::integrateLine(dvec2(saddlePt + 0.01*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, true, false, ZERO, 1000);
                 auto indexBufferSeparatrices3 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
                 for(auto p : backward) {
                     Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices3.get(), vertices);
                 }
-                backward = Integrator::integrateLine(dvec2(saddlePt  -0.001*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, true, false, ZERO, 1000);
+                backward = Integrator::integrateLine(dvec2(saddlePt  -0.01*dvec2(eigenAn.eigenvectors[i][0],eigenAn.eigenvectors[i][0])), 0.02, 1000, vectorField, true, false, ZERO, 1000);
                 auto indexBufferSeparatrices4 = mesh->addIndexBuffer(DrawType::Lines,ConnectivityType::Strip);
                 for(auto p : backward) {
                     Integrator::drawNextPointInPolyline(p, white, indexBufferSeparatrices4.get(), vertices);
@@ -213,53 +220,75 @@ void Topology::classifyCriticalPoints(const std::vector<dvec2> & critPoints, std
     for(auto pt : critPoints) {
         auto jac = vectorField.derive(pt);
         auto eigenAn = inviwo::util::eigenAnalysis(jac);
-        if(eigenAn.eigenvaluesIm[0] == 0 && eigenAn.eigenvaluesIm[1] == 0) { // saddle, sink or source
-            if(eigenAn.eigenvaluesRe[0] < 0.0 && eigenAn.eigenvaluesRe[1] < 0.0) {
-            // attracting node
-                attraNode.push_back(pt);
-            } else if(eigenAn.eigenvaluesRe[0] > 0.0 && eigenAn.eigenvaluesRe[1] > 0.0) {
-                // repelling node
+        if(abs(eigenAn.eigenvaluesIm[0]) < propClassifyBoundary.get() && abs(eigenAn.eigenvaluesIm[1]) < propClassifyBoundary.get() ) {
+            if(eigenAn.eigenvaluesRe[0] > propClassifyBoundary.get() && eigenAn.eigenvaluesRe[1] > propClassifyBoundary.get()) { // repelling node
                 repellNode.push_back(pt);
-            } else {
-                // saddle point
+                LogProcessorInfo("REPELLING")
+                LogProcessorInfo("Reals: " << eigenAn.eigenvaluesRe[0] << "  " << eigenAn.eigenvaluesRe[1]);
+                LogProcessorInfo("Ims: " << eigenAn.eigenvaluesIm[0] << "  " << eigenAn.eigenvaluesIm[1] << "\n");
+    
+            } else if(  eigenAn.eigenvaluesRe[0] < 0.0 && abs(eigenAn.eigenvaluesRe[0]) > propClassifyBoundary.get() && 
+                        eigenAn.eigenvaluesRe[1] < 0.0 && abs(eigenAn.eigenvaluesRe[1]) > propClassifyBoundary.get()) { // attracting node
+                attraNode.push_back(pt);
+                LogProcessorInfo("ATTRACTING")
+                LogProcessorInfo("Reals: " << eigenAn.eigenvaluesRe[0] << "  " << eigenAn.eigenvaluesRe[1]);
+                LogProcessorInfo("Ims: " << eigenAn.eigenvaluesIm[0] << "  " << eigenAn.eigenvaluesIm[1] << "\n");
+            } else if(  (eigenAn.eigenvaluesRe[0] > propClassifyBoundary.get() && eigenAn.eigenvaluesRe[1] < 0.0 && abs(eigenAn.eigenvaluesRe[1]) > propClassifyBoundary.get()) ||
+                        (eigenAn.eigenvaluesRe[1] > propClassifyBoundary.get() && eigenAn.eigenvaluesRe[0] < 0.0 && abs(eigenAn.eigenvaluesRe[0]) > propClassifyBoundary.get()) ) {                      
                 saddle.push_back(pt);
+                LogProcessorInfo("SADDLE")
+                LogProcessorInfo("Reals: " << eigenAn.eigenvaluesRe[0] << "  " << eigenAn.eigenvaluesRe[1]);
+                LogProcessorInfo("Ims: " << eigenAn.eigenvaluesIm[0] << "  " << eigenAn.eigenvaluesIm[1] << "\n");
             }
-        } else if(eigenAn.eigenvaluesRe[0] == eigenAn.eigenvaluesRe[1] && eigenAn.eigenvaluesIm[0] == -eigenAn.eigenvaluesIm[1]){
-            if(eigenAn.eigenvaluesRe[0] < 0.0) {        // attracting focus
-                attraFoc.push_back(pt);
-            } else if(eigenAn.eigenvaluesRe[0] > 0.0) { // repelling focus
+        } else if( abs(eigenAn.eigenvaluesRe[0] - eigenAn.eigenvaluesRe[1]) < propClassifyBoundary.get() && abs(eigenAn.eigenvaluesIm[0] + eigenAn.eigenvaluesIm[1]) < propClassifyBoundary.get() ) {
+            if(eigenAn.eigenvaluesRe[0] > propClassifyBoundary.get() && eigenAn.eigenvaluesRe[1] > propClassifyBoundary.get()) { // repelling focus
                 repellFoc.push_back(pt);
-            } else {                                    // center
-                center.push_back(pt);
+                LogProcessorInfo("REPELLING FOCUS")
+                LogProcessorInfo("Reals: " << eigenAn.eigenvaluesRe[0] << "  " << eigenAn.eigenvaluesRe[1]);
+                LogProcessorInfo("Ims: " << eigenAn.eigenvaluesIm[0] << "  " << eigenAn.eigenvaluesIm[1] << "\n");
+            } else if(  eigenAn.eigenvaluesRe[0] < 0.0 && abs(eigenAn.eigenvaluesRe[0]) > propClassifyBoundary.get() && 
+                        eigenAn.eigenvaluesRe[1] < 0.0 && abs(eigenAn.eigenvaluesRe[1]) > propClassifyBoundary.get()) {  // attracting focus
+                attraFoc.push_back(pt);
+                LogProcessorInfo("ATTRACTING FOCUS")
+                LogProcessorInfo("Reals: " << eigenAn.eigenvaluesRe[0] << "  " << eigenAn.eigenvaluesRe[1]);
+                LogProcessorInfo("Ims: " << eigenAn.eigenvaluesIm[0] << "  " << eigenAn.eigenvaluesIm[1] << "\n");
+            } else if(abs(eigenAn.eigenvaluesRe[0]) < propClassifyBoundary.get()){
+                center.push_back(pt);    
+                LogProcessorInfo("CENTER")
+                LogProcessorInfo("Reals: " << eigenAn.eigenvaluesRe[0] << "  " << eigenAn.eigenvaluesRe[1]);
+                LogProcessorInfo("Ims: " << eigenAn.eigenvaluesIm[0] << "  " << eigenAn.eigenvaluesIm[1] << "\n");                   // center
             }
         }
     } 
 }
 
-void Topology::findCritPoint(dvec2 bottomLeft, dvec2 bottomRight, dvec2 topLeft, dvec2 topRight, std::vector<dvec2> & pts, const VectorField2 & vectorField) {
+void Topology::findCritPoint(dvec2 bottomLeft, dvec2 bottomRight, dvec2 topLeft, dvec2 topRight, std::vector<dvec2> & pts, const VectorField2 & vectorField, int depth) {
     dvec2 middle = (bottomLeft + bottomRight + topLeft + topRight) / 4;
 
-    if(length(vectorField.interpolate(middle)) <= ZERO) {
+    if(length(vectorField.interpolate(middle)) <= propThreshold.get()) {
         pts.push_back(middle);
         return;
     }
-
+    if(depth >= propSearchDepth.get()) {
+        return;
+    }
+    depth++;
     dvec2 middleBottom(middle[0],bottomLeft[1]);
     dvec2 middleTop(middle[0],topLeft[1]);
     dvec2 middleLeft(bottomLeft[0],middle[1]);
     dvec2 middleRight(bottomRight[0],middle[1]);
     
     if(possibleCritPoint(bottomLeft, middleBottom, middleLeft, middle, vectorField)) {
-        findCritPoint(bottomLeft, middleBottom, middleLeft, middle, pts, vectorField);
+        findCritPoint(bottomLeft, middleBottom, middleLeft, middle, pts, vectorField, depth);
     }
     if(possibleCritPoint(middleBottom, bottomRight, middle, middleRight, vectorField)) {
-        findCritPoint(middleBottom, bottomRight, middle, middleRight, pts, vectorField);
+        findCritPoint(middleBottom, bottomRight, middle, middleRight, pts, vectorField, depth);
     }
     if(possibleCritPoint(middleLeft, middle, topLeft, middleTop, vectorField)) {
-        findCritPoint(middleLeft, middle, topLeft, middleTop, pts, vectorField);
+        findCritPoint(middleLeft, middle, topLeft, middleTop, pts, vectorField, depth);
     }
     if(possibleCritPoint(middle, middleRight, middleTop, topRight, vectorField)) {
-        findCritPoint(middle, middleRight, middleTop, topRight, pts, vectorField);
+        findCritPoint(middle, middleRight, middleTop, topRight, pts, vectorField, depth);
     }
 }
 
@@ -299,7 +328,7 @@ std::vector<dvec2> Topology::findCriticalPoints(const VectorField2 & vectorField
             
             if(possibleCritPoint(bottomLeft, bottomRight, topLeft, topRight, vectorField)) {
                 std::vector<dvec2> currCritPoints;
-                findCritPoint(bottomLeft, bottomRight, topLeft, topRight, currCritPoints, vectorField);
+                findCritPoint(bottomLeft, bottomRight, topLeft, topRight, currCritPoints, vectorField, 0);
                 if(currCritPoints.size() > 0) {
                     dvec2 avg_pt = currCritPoints[0];
                     for(int i = 1; i < currCritPoints.size(); i++) {
